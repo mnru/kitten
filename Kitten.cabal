@@ -92,6 +92,7 @@ library
     Kitten.Util.Show,
     Kitten.Util.Text,
     Kitten.Util.Tuple,
+    Kitten.X86_64
     Kitten.Yarn
 
 executable kitten

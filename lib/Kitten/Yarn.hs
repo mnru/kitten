@@ -3,7 +3,9 @@
 
 module Kitten.Yarn
   ( Instruction(..)
+  , Index
   , Label
+  , Offset
   , Value(..)
   , yarn
   ) where
@@ -56,7 +58,10 @@ data Instruction
   | Return
 
 instance Show Instruction where
-  show instruction = T.unpack . T.unwords $ case instruction of
+  show = T.unpack . toText
+
+instance ToText Instruction where
+  toText instruction = T.unwords $ case instruction of
     Act label names
       -> "act" : showText label : map showClosedName (V.toList names)
       where
@@ -64,7 +69,7 @@ instance Show Instruction where
       showClosedName (ClosedName (Name index)) = "local:" <> showText index
       showClosedName (ReclosedName (Name index)) = "closure:" <> showText index
 
-    Builtin builtin -> ["builtin", showText builtin]
+    Builtin builtin -> ["builtin", toText builtin]
     Call label -> ["call", showText label]
     Closure index -> ["closure", showText index]
     Comment comment -> ["\n;", comment]
@@ -78,7 +83,7 @@ instance Show Instruction where
     Label label -> ["\nlabel", showText label]
     Local index -> ["local", showText index]
     MakeVector size -> ["vector", showText size]
-    Push value -> ["push", showText value]
+    Push value -> ["push", toText value]
     Return -> ["ret"]
 
 data Value

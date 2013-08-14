@@ -3,12 +3,16 @@
 
 module Main where
 
+import Control.Exception (bracket)
 import Control.Monad
 import Data.Monoid
+import Data.Text (Text)
+import Data.Vector (Vector)
 import System.Console.CmdArgs.Explicit
 import System.Exit
 import System.IO
 
+import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Kitten.Compile (compile, locateImport)
@@ -16,13 +20,19 @@ import Kitten.Error
 import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Resolved (Resolved, Value)
+import Kitten.Util.Text (toText)
+import Kitten.X86_64
 import Kitten.Yarn (yarn)
 import Repl
 
 import qualified Kitten.Compile as Compile
 
+data AssemblyFormat
+  = X86_64
+  | Yarn
+
 data CompileMode
-  = CompileMode
+  = CompileMode AssemblyFormat
   | InterpretMode
 
 data Arguments = Arguments
@@ -32,6 +42,7 @@ data Arguments = Arguments
   , argsEnableImplicitPrelude :: Bool
   , argsEntryPoints :: [FilePath]
   , argsLibraryDirectories :: [FilePath]
+  , argsOutputPath :: Maybe FilePath
   , argsShowHelp :: Bool
   , argsShowVersion :: Bool
   }
@@ -86,7 +97,9 @@ main = do
   case argsEntryPoints arguments of
     [] -> runRepl prelude
     entryPoints -> interpretAll entryPoints
-      (argsCompileMode arguments) prelude
+      (argsCompileMode arguments)
+      (argsOutputPath arguments)
+      prelude
       $ \ filename program -> Compile.Config
       { Compile.dumpResolved = argsDumpResolved arguments
       , Compile.dumpScoped = argsDumpScoped arguments
@@ -100,20 +113,35 @@ main = do
 interpretAll
   :: [FilePath]
   -> CompileMode
+  -> Maybe FilePath
   -> Fragment Value Resolved
   -> (FilePath -> String -> Compile.Config)
   -> IO ()
-interpretAll entryPoints compileMode prelude config
+interpretAll entryPoints compileMode outputPath prelude config
   = mapM_ interpretOne entryPoints
+
   where
-  interpretOne :: FilePath -> IO ()
+  output :: Vector Text -> IO ()
+  output = case outputPath of
+    Nothing -> V.mapM_ (hPutStrLn stdout . T.unpack)
+    Just path
+      -> \ items -> bracket (openFile path WriteMode) hClose
+      $ \ handle -> V.mapM_ (hPutStrLn handle . T.unpack) items
+
+  interpretOne
+    :: FilePath
+    -> IO ()
   interpretOne filename = do
     program <- readFile filename
     mResult <- compile (config filename program)
     case mResult of
       Left compileErrors -> printCompileErrors compileErrors
       Right result -> case compileMode of
-        CompileMode -> V.mapM_ print $ yarn (prelude <> result)
+        CompileMode format
+          -> let yarned = yarn (prelude <> result)
+          in output $ case format of
+            X86_64 -> V.map x86_64 yarned
+            Yarn -> V.map toText yarned
         InterpretMode -> void $ interpret [] prelude result
 
 parseArguments :: IO Arguments
@@ -143,6 +171,7 @@ argumentsMode = mode "kitten" defaultArguments
     , argsEnableImplicitPrelude = True
     , argsEntryPoints = []
     , argsLibraryDirectories = []
+    , argsOutputPath = Nothing
     , argsShowHelp = False
     , argsShowVersion = False
     }
@@ -155,29 +184,19 @@ argumentsMode = mode "kitten" defaultArguments
   entryPointArgument path acc = Right
     $ acc { argsEntryPoints = path : argsEntryPoints acc }
 
-  flagReq'
-    :: [Name]
-    -> FlagHelp
-    -> Help
-    -> Update a
-    -> Flag a
-  flagReq' names sample description option
-    = flagReq names option sample description
-
-  flagBool'
-    :: [Name]
-    -> Help
-    -> (Bool -> a -> a)
-    -> Flag a
-  flagBool' names description option
-    = flagBool names option description
-
   options :: [Flag Arguments]
   options =
-    [ flagBool' ["c", "compile"]
-      "Compile Yarn assembly."
-      $ \ flag acc@Arguments{..} -> acc
-      { argsCompileMode = if flag then CompileMode else InterpretMode }
+    [ flagOpt' ["c", "compile"] "x86_64|yarn"
+      "Compile to specified assembly format."
+      "x86_64"
+      $ \ format acc@Arguments{..} -> case format of
+        "x86_64" -> Right acc { argsCompileMode = CompileMode X86_64 }
+        "yarn" -> Right acc { argsCompileMode = CompileMode Yarn }
+        _ -> Left $ concat
+          [ "Unknown assembly format '"
+          , format
+          , "'."
+          ]
 
     , flagBool' ["dump-resolved"]
       "Output result of name resolution."
@@ -191,8 +210,19 @@ argumentsMode = mode "kitten" defaultArguments
 
     , flagReq' ["L", "library"] "DIR"
       "Add library search directory."
-      $ \ path acc@Arguments{..} -> Right $ acc
+      $ \ path acc@Arguments{..} -> Right acc
       { argsLibraryDirectories = path : argsLibraryDirectories }
+
+    , flagReq' ["o", "output"] "FILE"
+      "Set output path."
+      $ \ path acc@Arguments{..} -> case argsOutputPath of
+        Just existing -> Left $ unlines
+          [ "Multiple output paths specified:"
+          , existing
+          , "And:"
+          , path
+          ]
+        Nothing -> Right acc { argsOutputPath = Just path }
 
     , flagBool' ["no-implicit-prelude"]
       "Disable implicit inclusion of prelude."
@@ -202,3 +232,30 @@ argumentsMode = mode "kitten" defaultArguments
     , flagHelpSimple $ \ acc -> acc { argsShowHelp = True }
     , flagVersion $ \ acc -> acc { argsShowVersion = True }
     ]
+
+flagBool'
+  :: [Name]
+  -> Help
+  -> (Bool -> a -> a)
+  -> Flag a
+flagBool' names description option
+  = flagBool names option description
+
+flagOpt'
+  :: [Name]
+  -> FlagHelp
+  -> Help
+  -> String
+  -> Update a
+  -> Flag a
+flagOpt' names sample description default_ option
+  = flagOpt default_ names option sample description
+
+flagReq'
+  :: [Name]
+  -> FlagHelp
+  -> Help
+  -> Update a
+  -> Flag a
+flagReq' names sample description option
+  = flagReq names option sample description
