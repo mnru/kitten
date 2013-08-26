@@ -1,10 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Repl
   ( runRepl
   ) where
 
-import Control.Applicative
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State.Strict
@@ -200,7 +200,8 @@ completePrefix prefix = do
   let
     prefix' = T.pack prefix
     matching
-      = V.filter (prefix' `T.isPrefixOf`) (defName <$> defs)
+      = V.filter (prefix' `T.isPrefixOf`)
+        (V.concatMap (V.map (fromMaybe "_") . defName) defs)
       <> V.filter (prefix' `T.isPrefixOf`) Builtin.names
     finished = V.length matching <= 1
     completions = map (toCompletion finished . T.unpack) (V.toList matching)

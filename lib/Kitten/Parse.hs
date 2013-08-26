@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Kitten.Parse
   ( parse
   ) where
@@ -49,7 +51,13 @@ element = choice
 def :: Parser (Def Value)
 def = (<?> "definition") . locate $ do
   void (match Token.Def)
-  name <- functionName
+  name <- choice
+    [ V.singleton . Just <$> functionName
+    , grouped . many1V $ choice
+      [ Nothing <$ match (Token.LittleWord "_")
+      , Just <$> functionName
+      ]
+    ]
   anno <- optionMaybe (grouped signature)
   body <- term
   return $ \ loc -> Def

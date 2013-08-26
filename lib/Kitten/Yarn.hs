@@ -12,6 +12,7 @@ import Control.Applicative hiding (some)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
+import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -172,7 +173,10 @@ yarnDef Def{..} index = do
     Resolved.Closure _ term -> yarnTerm term
     _ -> error "Kitten.Yarn.yarnDef: TODO yarn non-function definition"
   return
-    $ V.fromList [Comment defName, Label index]
+    $ V.fromList
+      [ Comment . T.unwords . V.toList $ V.map (fromMaybe "_") defName
+      , Label index
+      ]
     <> instructions
     <> V.singleton Return
 

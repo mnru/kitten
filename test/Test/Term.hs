@@ -195,7 +195,7 @@ parsed
 
 def :: Text -> Value -> Def Value
 def name value = Def
-  { defName = name
+  { defName = V.singleton (Just name)
   , defAnno = Nothing
   , defTerm = value
   , defLocation = TestLocation

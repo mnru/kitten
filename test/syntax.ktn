@@ -1,0 +1,4 @@
+def (foreach _ _) ([a] (a -> b +e) -> [b] +e): each
+
+foreach (1 10 ..): ->x
+  x sayInt

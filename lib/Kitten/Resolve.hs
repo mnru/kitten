@@ -34,7 +34,7 @@ resolve prelude fragment
     , fragmentTerms = terms
     })
     (resolveDefs (fragmentDefs fragment))
-    (guardMapM resolveTerm (fragmentTerms fragment))
+    (resolveTerms $ V.toList (fragmentTerms fragment))
   where
   emptyEnv = Env
     (fragmentDefs prelude)
@@ -50,40 +50,47 @@ resolveDefs = guardMapM resolveDef
     return def { defTerm = defTerm' }
 
 resolveTerm :: Term -> Resolution Resolved
-resolveTerm unresolved = case unresolved of
-  Term.Builtin name loc -> return $ Builtin name loc
-  Term.Call name loc -> resolveName name loc
-  Term.ChoiceTerm left right loc -> ChoiceTerm
-    <$> resolveTerm left
-    <*> resolveTerm right
-    <*> pure loc
-  Term.Compose terms loc -> Compose
-    <$> guardMapM resolveTerm terms
-    <*> pure loc
-  Term.From name loc -> return $ From name loc
-  Term.Group terms loc -> Group
-    <$> guardMapM resolveTerm terms
-    <*> pure loc
-  Term.If true false loc -> If
-    <$> resolveTerm true
-    <*> resolveTerm false
-    <*> pure loc
-  Term.Lambda name term loc -> withLocal name $ Scoped
-    <$> resolveTerm term
-    <*> pure loc
-  Term.OptionTerm some none loc -> OptionTerm
-    <$> resolveTerm some
-    <*> resolveTerm none
-    <*> pure loc
-  Term.PairTerm as bs loc -> PairTerm
-    <$> resolveTerm as
-    <*> resolveTerm bs
-    <*> pure loc
-  Term.Push value loc -> Push <$> resolveValue value <*> pure loc
-  Term.To name loc -> return $ To name loc
-  Term.VectorTerm items loc -> VectorTerm
-    <$> guardMapM resolveTerm items
-    <*> pure loc
+resolveTerm term = V.head <$> resolveTerms [term]
+
+resolveTerms :: [Term] -> Resolution (Vector Resolved)
+resolveTerms [] = return V.empty
+resolveTerms (unresolved:rest)
+  = V.cons <$> go <*> resolveTerms rest
+  where
+  go = case unresolved of
+    Term.Builtin name loc -> return $ Builtin name loc
+    Term.Call name loc -> resolveName name loc
+    Term.ChoiceTerm left right loc -> ChoiceTerm
+      <$> resolveTerm left
+      <*> resolveTerm right
+      <*> pure loc
+    Term.Compose terms loc -> Compose
+      <$> resolveTerms (V.toList terms)
+      <*> pure loc
+    Term.From name loc -> return $ From name loc
+    Term.Group terms loc -> Group
+      <$> resolveTerms (V.toList terms)
+      <*> pure loc
+    Term.If true false loc -> If
+      <$> resolveTerm true
+      <*> resolveTerm false
+      <*> pure loc
+    Term.Lambda name term loc -> withLocal name $ Scoped
+      <$> resolveTerm term
+      <*> pure loc
+    Term.OptionTerm some none loc -> OptionTerm
+      <$> resolveTerm some
+      <*> resolveTerm none
+      <*> pure loc
+    Term.PairTerm as bs loc -> PairTerm
+      <$> resolveTerm as
+      <*> resolveTerm bs
+      <*> pure loc
+    Term.Push value loc -> Push <$> resolveValue value <*> pure loc
+    Term.To name loc -> return $ To name loc
+    Term.VectorTerm items loc -> VectorTerm
+      <$> guardMapM resolveTerm items
+      <*> pure loc
 
 resolveValue :: Term.Value -> Resolution Value
 resolveValue unresolved = case unresolved of
@@ -91,8 +98,9 @@ resolveValue unresolved = case unresolved of
   Term.Char value _ -> return $ Char value
   Term.Choice which value _ -> Choice which <$> resolveValue value
   Term.Float value _ -> return $ Float value
-  Term.Function term loc -> Function
-    <$> (Compose <$> guardMapM resolveTerm term <*> pure loc)
+  Term.Function terms loc -> fmap Function $ Compose
+    <$> resolveTerms (V.toList terms)
+    <*> pure loc
   Term.Int value _ -> return $ Int value
   Term.Option mValue _ -> case mValue of
     Just value -> Option . Just <$> resolveValue value

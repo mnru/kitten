@@ -54,7 +54,8 @@ defIndices expected Env{..} = findExpected envPrelude
   <> ((V.length envPrelude +) <$> findExpected envDefs)
   where
   findExpected :: Vector (Def a) -> Vector Int
-  findExpected = V.findIndices $ (== expected) . defName
+  findExpected = V.findIndices
+    $ (== V.singleton (Just expected)) . defName
 
 evalResolution :: Env -> Resolution a -> Either [CompileError] a
 evalResolution env (Resolution m)
