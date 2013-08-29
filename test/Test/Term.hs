@@ -190,7 +190,7 @@ testTermFailure source = it ("should fail: " ++ show source)
 
 parsed :: String -> Either CompileError (Fragment Value Term)
 parsed
-  = mapLeft parseError . tokenize "test"
+  = mapLeft parseError . tokenize 1 "test"
   >=> mapLeft parseError . parse "test"
 
 def :: Text -> Value -> Def Value

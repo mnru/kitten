@@ -23,13 +23,17 @@ import Kitten.Fragment
 import Kitten.Interpret
 import Kitten.Resolved
 import Kitten.TypeDef
+import Kitten.Util.List
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Compile as Compile
 
+import Debug.Trace
+
 data Repl = Repl
-  { replStack :: [Value]
-  , replDefs :: !(Vector (Def Value))
+  { replDefs :: !(Vector (Def Value))
+  , replLine :: !Int
+  , replStack :: [Value]
   , replTypeDefs :: !(Vector TypeDef)
   }
 
@@ -44,16 +48,10 @@ runRepl :: Fragment Value Resolved -> IO ()
 runRepl prelude = do
   welcome
   flip runReaderT preludeDefs
-    . flip evalStateT emptyRepl
+    . flip evalStateT (emptyRepl preludeDefs)
     $ runInputT settings repl
-
   where
-  emptyRepl :: Repl
-  emptyRepl = Repl
-    { replStack = []
-    , replDefs = preludeDefs
-    , replTypeDefs = V.empty
-    }
+  preludeDefs = fragmentDefs prelude
 
   welcome :: IO ()
   welcome = mapM_ putStrLn
@@ -61,7 +59,13 @@ runRepl prelude = do
     , "Type ':help' for help or ':quit' to quit."
     ]
 
-  preludeDefs = fragmentDefs prelude
+emptyRepl :: Vector (Def Value) -> Repl
+emptyRepl preludeDefs = Repl
+  { replDefs = preludeDefs
+  , replLine = 1
+  , replStack = []
+  , replTypeDefs = V.empty
+  }
 
 repl :: ReplInput ()
 repl = do
@@ -104,6 +108,7 @@ eval line = do
   mCompiled <- liftIO $ compile Compile.Config
     { Compile.dumpResolved = False
     , Compile.dumpScoped = False
+    , Compile.firstLine = trace ("Current line: " ++ show replLine) replLine
     , Compile.libraryDirectories = []  -- TODO
     , Compile.name = replName
     , Compile.prelude = mempty
@@ -122,8 +127,9 @@ eval line = do
         , fragmentTypeDefs = replTypeDefs
         } compileResult
       lift . modify $ \ s -> s
-        { replStack = stack'
-        , replDefs = replDefs <> fragmentDefs compileResult
+        { replDefs = replDefs <> fragmentDefs compileResult
+        , replLine = replLine + count '\n' line + 1
+        , replStack = stack'
         , replTypeDefs = replTypeDefs <> fragmentTypeDefs compileResult
         }
   repl
@@ -182,11 +188,7 @@ clear = do
 reset :: ReplInput ()
 reset = do
   preludeDefs <- askPreludeDefs
-  lift $ put Repl
-    { replStack = []
-    , replDefs = preludeDefs
-    , replTypeDefs = V.empty
-    }
+  lift . put $ emptyRepl preludeDefs
   repl
 
 completer :: CompletionFunc ReplState

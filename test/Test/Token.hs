@@ -99,14 +99,14 @@ spec = do
       [Operator "!#$%&*+-./;<=>?@^|~"]
 
 testComment :: String -> Assertion
-testComment source = case tokenize "test" source of
+testComment source = case tokenize 1 "test" source of
   Left message -> assertFailure $ show message
   Right [] -> return ()
   Right actual -> expectedButGot "[]" (showLocated actual)
 
 testInt :: String -> Int -> Spec
 testInt source expected = it ("int " ++ show source)
-  $ case tokenize "test" source of
+  $ case tokenize 1 "test" source of
     Left message -> assertFailure $ show message
     Right [Located (Int actual) _]
       | actual == expected -> return ()
@@ -115,7 +115,7 @@ testInt source expected = it ("int " ++ show source)
 
 testTokens :: String -> [Token] -> Spec
 testTokens source expected = it (show source)
-  $ case tokenize "test" source of
+  $ case tokenize 1 "test" source of
     Left message -> assertFailure $ show message
     Right actual
       | map locatedToken actual == expected -> return ()

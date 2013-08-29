@@ -5,6 +5,8 @@ module Kitten.Resolve
   ) where
 
 import Control.Applicative hiding (some)
+import Control.Arrow ((&&&))
+import Data.Maybe
 import Data.Text (Text)
 import Data.Vector (Vector)
 
@@ -27,19 +29,38 @@ resolve
   :: Fragment Resolved.Value Resolved
   -> Fragment Term.Value Term
   -> Either [CompileError] (Fragment Value Resolved)
-resolve prelude fragment
-  = evalResolution emptyEnv
-  $ guardLiftM2 (\ defs terms -> fragment
-    { fragmentDefs = defs
-    , fragmentTerms = terms
-    })
+resolve prelude fragment = do
+  case resolveDuplicateDefs allNamesAndLocs of
+    [] -> return ()
+    errors -> Left errors
+  evalResolution emptyEnv $ guardLiftM2
+    (\ defs terms -> fragment
+      { fragmentDefs = defs
+      , fragmentTerms = terms
+      })
     (resolveDefs (fragmentDefs fragment))
     (guardMapM resolveTerm (fragmentTerms fragment))
   where
+  allNamesAndLocs = namesAndLocs prelude ++ namesAndLocs fragment
+  namesAndLocs = map (defName &&& defLocation) . V.toList . fragmentDefs
+
   emptyEnv = Env
     (fragmentDefs prelude)
     (fragmentDefs fragment)
     []
+
+resolveDuplicateDefs
+  :: [(Text, Location)]
+  -> [CompileError]
+resolveDuplicateDefs defs = flip mapMaybe defs $ \ def@(name, loc)
+  -> case filter (duplicate def) defs of
+    [] -> Nothing
+    duplicates -> Just $ DuplicateError loc
+      (V.fromList $ map snd duplicates) name
+  where
+  duplicate :: (Text, Location) -> (Text, Location) -> Bool
+  duplicate (existingName, existingLoc) (thisName, thisLoc)
+    = thisName == existingName && thisLoc /= existingLoc
 
 resolveDefs :: Vector (Def Term.Value) -> Resolution (Vector (Def Value))
 resolveDefs = guardMapM resolveDef

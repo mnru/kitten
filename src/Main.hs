@@ -57,6 +57,7 @@ main = do
       mPrelude <- compile Compile.Config
         { Compile.dumpResolved = argsDumpResolved arguments
         , Compile.dumpScoped = argsDumpScoped arguments
+        , Compile.firstLine = 1
         , Compile.libraryDirectories
           = argsLibraryDirectories arguments
         , Compile.name = filename
@@ -90,6 +91,7 @@ main = do
       $ \ filename program -> Compile.Config
       { Compile.dumpResolved = argsDumpResolved arguments
       , Compile.dumpScoped = argsDumpScoped arguments
+      , Compile.firstLine = 1
       , Compile.libraryDirectories = argsLibraryDirectories arguments
       , Compile.name = filename
       , Compile.prelude = prelude
