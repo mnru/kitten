@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
+void** kitten_call;
 KittenObject** kitten_closure;
 KittenObject** kitten_data;
 KittenObject** kitten_locals;
@@ -11,13 +12,17 @@ KittenObject* kitten_ints[KITTEN_INT_POOL_SIZE];
 KittenObject* kitten_unit;
 
 void kitten_init(void) {
+  const size_t CALL_SIZE = 1024;
+  kitten_call = calloc(CALL_SIZE, sizeof(void*));
+  kitten_call += CALL_SIZE;
+
   const size_t DATA_SIZE = 1024;
   kitten_data = calloc(DATA_SIZE, sizeof(KittenObject*));
-  kitten_data += DATA_SIZE - 1;
+  kitten_data += DATA_SIZE;
 
   const size_t LOCALS_SIZE = 1024;
   kitten_locals = calloc(LOCALS_SIZE, sizeof(KittenObject*));
-  kitten_locals += LOCALS_SIZE - 1;
+  kitten_locals += LOCALS_SIZE;
 
   for (int i = 0; i < KITTEN_INT_POOL_SIZE; ++i) {
     kitten_ints[i] = kitten_new_int(i);

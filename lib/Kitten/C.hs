@@ -6,7 +6,6 @@ module Kitten.C
 
 import Control.Applicative
 import Control.Monad.Trans.State
-import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -53,18 +52,16 @@ advance = do
     = (names, (name, pred offset) : remaining)
 
 toC :: Vector Instruction -> Vector Text
-toC instructions = preamble
-  <> evalState (V.mapM go instructions) Env
+toC instructions = V.cons preamble
+  $ evalState (V.mapM go instructions) Env
   { envNext = Name 0
   , envOffsets = N.empty
   }
   where
-  preamble = V.fromList
-    $ "#include \"kitten.h\""
-    : mapMaybe (\ instruction -> case instruction of
-      Label label -> Just $ "void " <> global label <> "(void);"
-      _ -> Nothing)
-      (V.toList instructions)
+  preamble =
+    "#include \"kitten.h\"\n\
+    \int main(int argc, char** argv) {\n\
+    \kitten_init();\n"
 
   go instruction = (<>) <$> advance <*> case instruction of
 
@@ -72,7 +69,7 @@ toC instructions = preamble
       [ "*kitten_data-- = "
       , k "retain"
         [ k "new_activation"
-          $ global label
+          $ "&&" <> global label
           : showText (V.length names)
           : map closedName (V.toList names)
         ]
@@ -86,8 +83,11 @@ toC instructions = preamble
 
     Builtin builtin -> return $ toCBuiltin builtin
 
-    Call label
-      -> return $ global label <> "();"
+    Call label -> do
+      next <- newLabel 0
+      return $
+        "*kitten_call-- = &&" <> local next <> ";\n\
+        \goto " <> global label <> ";"
 
     Closure index -> return $ T.concat
       [ "*kitten_data-- = kitten_retain(kitten_closure["
@@ -97,7 +97,7 @@ toC instructions = preamble
 
     Comment text -> return $ T.unwords ["/*", text, "*/"]
 
-    EndDef -> return "}"
+    EndDef -> return ""
 
     EndEntry -> return
       "return 0;\n\
@@ -105,13 +105,11 @@ toC instructions = preamble
 
     Enter -> return "*kitten_locals-- = *kitten_data++;"
 
-    EntryLabel -> return
-      "int main(int argc, char** argv) {\n\
-      \kitten_init();"
+    EntryLabel -> return ""
 
     Jump offset -> do
       label <- newLabel offset
-      return $ T.concat ["goto ", local label, ";"]
+      return $ "goto " <> local label <> ";"
 
     JumpIfFalse offset -> do
       label <- newLabel offset
@@ -157,7 +155,7 @@ toC instructions = preamble
       \++kitten_locals;"
 
     Label label -> return
-      $ "void " <> global label <> "(void) {"
+      $ global label <> ":"
 
     Local index -> return $ T.concat
       ["*kitten_data-- = kitten_retain(kitten_locals[", showText index, "]);"]
@@ -167,7 +165,7 @@ toC instructions = preamble
     Push x -> return $ T.concat
       ["*kitten_data-- = kitten_retain(", toCValue x, ");"]
 
-    Return -> return "return;"
+    Return -> return "goto *(*kitten_call++);"
 
 k :: Text -> [Text] -> Text
 k f xs = T.concat ["kitten_", f, "(", T.intercalate ", " xs, ")"]

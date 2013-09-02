@@ -85,6 +85,7 @@ typedef union KittenObject {
   KittenVector as_vector;
 } KittenObject;
 
+extern void** kitten_call;
 extern KittenObject** kitten_closure;
 extern KittenObject** kitten_data;
 extern KittenObject** kitten_locals;
