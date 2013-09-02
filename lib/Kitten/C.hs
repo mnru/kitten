@@ -81,16 +81,17 @@ toC instructions = V.cons preamble
       closedName (ReclosedName (Name index))
         = "kitten_closure[" <> showText index <> "]"
 
-    Builtin builtin -> return $ toCBuiltin builtin
+    Builtin builtin -> toCBuiltin builtin
 
     Call label -> do
       next <- newLabel 0
       return $
-        "*kitten_call-- = &&" <> local next <> ";\n\
+        "*kitten_return-- = (KittenReturn){\n\
+        \  .address = &&" <> local next <> ", .closure = 0 };\n\
         \goto " <> global label <> ";"
 
     Closure index -> return $ T.concat
-      [ "*kitten_data-- = kitten_retain(kitten_closure["
+      [ "*kitten_data-- = kitten_retain(*kitten_closure["
       , showText index
       , "]);"
       ]
@@ -165,7 +166,15 @@ toC instructions = V.cons preamble
     Push x -> return $ T.concat
       ["*kitten_data-- = kitten_retain(", toCValue x, ");"]
 
-    Return -> return "goto *(*kitten_call++);"
+    Return -> return
+      -- TODO Release closure values?
+      "{\n\
+      \  KittenReturn call = *kitten_return++;\n\
+      \  if (call.closure) {\n\
+      \    ++kitten_closure;\n\
+      \  }\n\
+      \  goto *call.address;\n\
+      \}"
 
 k :: Text -> [Text] -> Text
 k f xs = T.concat ["kitten_", f, "(", T.intercalate ", " xs, ")"]
@@ -194,31 +203,30 @@ global label = "global" <> showText label
 local :: Name -> Text
 local (Name label) = "local" <> showText label
 
-toCBuiltin :: Builtin -> Text
+toCBuiltin :: Builtin -> State Env Text
 toCBuiltin builtin = case builtin of
 
-  Builtin.AddFloat ->
-    "{\n\
-    \  KittenObject* b = *kitten_data++;\n\
-    \  if ((*kitten_data)->refcount == 1) {\n\
-    \    (*kitten_data)->as_float.value += b->as_float.value;\n\
-    \  } else {\n\
-    \    KittenObject* a = *kitten_data++;\n\
-    \    *kitten_data-- = kitten_retain(kitten_new_float(\n\
-    \      a->as_float.value + b->as_float.value));\n\
-    \    kitten_release(a);\n\
-    \  }\n\
-    \  kitten_release(b);\n\
-    \}"
+  Builtin.AddFloat -> return $ binary "float" "+"
+  Builtin.AddInt -> return $ binary "int" "+"
 
-  _ -> "// TODO compile builtin " <> toText builtin
+  Builtin.Apply -> do
+    next <- newLabel 0
+    -- TODO Retain closure values?
+    return $
+      "{\n\
+      \  KittenObject* f = *kitten_data++;\n\
+      \  *kitten_closure-- = f->as_activation.begin;\n\
+      \  *kitten_return-- = (KittenReturn){\n\
+      \    .address = &&" <> local next <> ", .closure = 1 };\n\
+      \  goto *f->as_activation.function;\n\
+      \}"
+
+  _ -> return $ "// TODO compile builtin " <> toText builtin
 
   {-
-  Builtin.AddInt
   Builtin.AddVector
   Builtin.AndBool
   Builtin.AndInt
-  Builtin.Apply
   Builtin.CharToInt
   Builtin.Close
   Builtin.DivFloat
@@ -278,3 +286,21 @@ toCBuiltin builtin = case builtin of
   Builtin.XorBool
   Builtin.XorInt
   -}
+
+  where
+
+  binary type_ operation =
+    "{\n\
+    \  KittenObject* b = *kitten_data++;\n\
+    \  if ((*kitten_data)->refcount == 1) {\n\
+    \    (*kitten_data)->as_" <> type_ <> ".value "
+      <> operation <> "= b->as_" <> type_ <> ".value;\n\
+    \  } else {\n\
+    \    KittenObject* a = *kitten_data++;\n\
+    \    *kitten_data-- = kitten_retain(kitten_new_" <> type_ <> "(\n\
+    \      a->as_" <> type_ <> ".value "
+      <> operation <> " b->as_" <> type_ <> ".value));\n\
+    \    kitten_release(a);\n\
+    \  }\n\
+    \  kitten_release(b);\n\
+    \}"

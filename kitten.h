@@ -23,7 +23,7 @@ union KittenObject;
 typedef struct KittenActivation {
   uint16_t type;
   uint16_t refcount;
-  void (*function)(void);
+  void* function;
   union KittenObject** begin;
   union KittenObject** end;
 } KittenActivation;
@@ -85,8 +85,13 @@ typedef union KittenObject {
   KittenVector as_vector;
 } KittenObject;
 
-extern void** kitten_call;
-extern KittenObject** kitten_closure;
+typedef struct KittenReturn {
+  void* address;
+  int closure;
+} KittenReturn;
+
+extern KittenReturn* kitten_return;
+extern KittenObject*** kitten_closure;
 extern KittenObject** kitten_data;
 extern KittenObject** kitten_locals;
 
