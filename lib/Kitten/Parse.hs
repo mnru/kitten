@@ -29,6 +29,7 @@ import Kitten.Term
 import Kitten.TypeDef
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.Parsec
+import Kitten.Util.Text (toText)
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Token as Token
@@ -109,7 +110,7 @@ term = nonblockTerm <|> blockTerm
 
   toFunctionOrBuiltin :: Token -> Maybe Text
   toFunctionOrBuiltin token = case token of
-    Token.Builtin name -> Builtin.toText name
+    Token.Builtin name -> Just (toText name)
     Token.LittleWord name -> Just name
     Token.Operator name -> Just name
     _ -> Nothing

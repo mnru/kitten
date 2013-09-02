@@ -49,6 +49,7 @@ library
     Kitten.AST,
     Kitten.Anno,
     Kitten.Builtin,
+    Kitten.C,
     Kitten.ClosedName,
     Kitten.Compile,
     Kitten.Compile.Config,
