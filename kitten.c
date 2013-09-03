@@ -156,6 +156,25 @@ KittenObject* kitten_new_unit(KittenObject* const value) {
   return (KittenObject*)object;
 }
 
+KittenObject* kitten_append_vector(
+  KittenObject* const a, KittenObject* const b) {
+  KittenVector* object = kitten_alloc(sizeof(KittenVector), KITTEN_VECTOR);
+  const size_t size = a->as_vector.end - a->as_vector.begin
+    + b->as_vector.end - b->as_vector.begin;
+  object->begin = calloc(size, sizeof(KittenObject*));
+  object->capacity = object->begin + size;
+  object->end = object->begin;
+  for (KittenObject** from = a->as_vector.begin;
+       from != a->as_vector.end; ++from) {
+    *object->end++ = kitten_retain(*from);
+  }
+  for (KittenObject** from = b->as_vector.begin;
+       from != b->as_vector.end; ++from) {
+    *object->end++ = kitten_retain(*from);
+  }
+  return (KittenObject*)object;
+}
+
 KittenObject* kitten_new_vector(const size_t size, ...) {
   va_list args;
   va_start(args, size);

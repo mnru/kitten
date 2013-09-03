@@ -55,17 +55,28 @@ advance = do
     = (names, (name, pred offset) : remaining)
 
 toC :: Vector Instruction -> Vector Text
-toC instructions = V.cons preamble
-  $ evalState (V.mapM go instructions) Env
-  { envNext = Name 0
-  , envOffsets = N.empty
-  }
+toC instructions = V.concat
+  [ V.singleton begin
+  , evalState (V.mapM go instructions) Env
+    { envNext = Name 0
+    , envOffsets = N.empty
+    }
+  , V.singleton end
+  ]
+
   where
-  preamble = [qc|
+  begin = [qc|
     #include "kitten.h"
     int main(int argc, char** argv) {
-    kitten_init();
-    goto entry;
+      kitten_init();
+      *++kitten_return = (KittenReturn){ .address = &&exit, .closure = 0 };
+      goto entry;
+  |]
+
+  end = [qc|
+    exit:
+      return 0;
+    }
   |]
 
   go instruction = (<>) <$> advance <*> case instruction of
@@ -80,7 +91,7 @@ toC instructions = V.cons preamble
     |]
       where
       closedName (ClosedName (Name index))
-        = [qc|kitten_retain(kitten_locals[#{ showText index }])|]
+        = [qc|kitten_retain(*(kitten_locals - #{ showText index }))|]
       closedName (ReclosedName (Name index))
         = [qc|kitten_retain((*kitten_closure)[#{ showText index }])|]
 
@@ -88,24 +99,18 @@ toC instructions = V.cons preamble
 
     Call label -> do
       next <- newLabel 0
-      return $
-        "*++kitten_return = (KittenReturn){\n\
-        \  .address = &&" <> local next <> ", .closure = 0 };\n\
-        \goto " <> global label <> ";"
+      return [qc|
+        *++kitten_return = (KittenReturn){
+          .address = &&#{ local next }, .closure = 0 };
+        goto #{ global label };
+      |]
 
-    Closure index -> return $ T.concat
-      [ "*++kitten_data = kitten_retain((*kitten_closure)["
-      , showText index
-      , "]);"
-      ]
+    Closure index -> return [qc|
+      *++kitten_data = kitten_retain((*kitten_closure)[
+        #{ showText index }]);
+      |]
 
     Comment text -> return $ T.unwords ["/*", text, "*/"]
-
-    EndDef -> return ""
-
-    EndEntry -> return
-      "return 0;\n\
-      \}"
 
     Enter -> return "*++kitten_locals = *kitten_data--;"
 
@@ -117,15 +122,16 @@ toC instructions = V.cons preamble
 
     JumpIfFalse offset -> do
       label <- newLabel offset
-      return $
-        "{\n\
-        \  KittenObject* top = *kitten_data--;\n\
-        \  int test = top->as_int.value;\n\
-        \  kitten_release(top);\n\
-        \  if (!test) {\n\
-        \    goto " <> local label <> ";\n\
-        \  }\n\
-        \}"
+      return [qc|
+        {
+          KittenObject* top = *kitten_data--;
+          int test = top->as_int.value;
+          kitten_release(top);
+          if (!test) {
+            goto #{ local label };
+          }
+        }
+      |]
 
     JumpIfNone offset -> do
       label <- newLabel offset
@@ -166,7 +172,8 @@ toC instructions = V.cons preamble
     |]
 
     Local index -> return [qc|
-      *++kitten_data = kitten_retain(kitten_locals[#{ showText index }]);
+      *++kitten_data = kitten_retain(
+        *(kitten_locals - #{ showText index }));
     |]
 
     MakeVector size -> return [qc|
@@ -187,7 +194,7 @@ toC instructions = V.cons preamble
           for (KittenObject** p = *kitten_closure; *p; ++p) {
             kitten_release(*p);
           }
-          ++kitten_closure;
+          --kitten_closure;
         }
         goto *call.address;
       }
@@ -221,6 +228,18 @@ toCBuiltin :: Builtin -> State Env Text
 toCBuiltin builtin = case builtin of
   Builtin.AddFloat -> binary "float" "+"
   Builtin.AddInt -> binary "int" "+"
+
+  -- TODO
+  Builtin.AddVector -> return [qc|
+    {
+      KittenObject* b = *kitten_data--;
+      KittenObject* a = *kitten_data--;
+      *++kitten_data = kitten_append_vector(a, b);
+      kitten_release(b);
+      kitten_release(a);
+    }
+  |]
+
   Builtin.AndBool -> relational "int" "&&"
   Builtin.AndInt -> binary "int" "&"
 
@@ -276,6 +295,17 @@ toCBuiltin builtin = case builtin of
   Builtin.FromRight -> fromBox
   Builtin.FromSome -> fromBox
 
+  Builtin.Get -> return [qc|
+    {
+      KittenObject* index = *kitten_data--;
+      KittenObject* vector = *kitten_data;
+      *kitten_data = kitten_retain(
+        vector->as_vector.begin[index->as_int.value]);
+      kitten_release(index);
+      kitten_release(vector);
+    }
+  |]
+
   Builtin.IntToChar -> return "// __int_to_char"
   Builtin.LeFloat -> relational "float" "<="
   Builtin.LeInt -> relational "int" "<="
@@ -320,6 +350,20 @@ toCBuiltin builtin = case builtin of
     }
   |]
 
+  -- TODO Unicode output.
+  Builtin.Print -> return [qc|
+    {
+      KittenObject* handle = *kitten_data--;
+      KittenObject* string = *kitten_data--;
+      for (KittenObject** p = string->as_vector.begin;
+           p != string->as_vector.end; ++p) {
+        fputc((*p)->as_int.value, handle->as_handle.value);
+      }
+      kitten_release(handle);
+      kitten_release(string);
+    }
+  |]
+
   Builtin.Rest -> return [qc|
     {
       KittenObject* a = *kitten_data;
@@ -331,6 +375,24 @@ toCBuiltin builtin = case builtin of
 
   Builtin.Right -> return [qc|
     *kitten_data = kitten_retain(kitten_new_right(*kitten_data));
+  |]
+
+  -- TODO
+  Builtin.ShowFloat -> return [qc|
+    {
+      KittenObject* a = *kitten_data;
+      *kitten_data = kitten_retain(kitten_new_vector(0));
+      kitten_release(a);
+    }
+  |]
+
+  -- TODO
+  Builtin.ShowInt -> return [qc|
+    {
+      KittenObject* a = *kitten_data;
+      *kitten_data = kitten_retain(kitten_new_vector(0));
+      kitten_release(a);
+    }
   |]
 
   Builtin.Some -> return [qc|
@@ -362,18 +424,13 @@ toCBuiltin builtin = case builtin of
   |]
 
   {-
-  Builtin.AddVector
-  Builtin.Get
   Builtin.GetLine
   Builtin.Impure
   Builtin.Init
   Builtin.ModFloat
   Builtin.OpenIn
   Builtin.OpenOut
-  Builtin.Print
   Builtin.Set
-  Builtin.ShowFloat
-  Builtin.ShowInt
   Builtin.Tail
   -}
 

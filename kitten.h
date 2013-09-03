@@ -121,6 +121,7 @@ KittenObject* kitten_new_some(KittenObject* value);
 KittenObject* kitten_new_unit();
 KittenObject* kitten_new_vector(size_t size, ...);
 
+KittenObject* kitten_append_vector(KittenObject* a, KittenObject* b);
 KittenObject* kitten_make_vector(size_t size);
 
 #endif

@@ -46,8 +46,6 @@ data Instruction
   | Call !Label
   | Closure !Index
   | Comment !Text
-  | EndDef
-  | EndEntry
   | Enter
   | EntryLabel
   | Jump !Offset
@@ -77,8 +75,6 @@ instance ToText Instruction where
     Call label -> ["call", showText label]
     Closure index -> ["closure", showText index]
     Comment comment -> ["\n;", comment]
-    EndEntry -> ["\n"]
-    EndDef -> ["\n"]
     Enter -> ["enter"]
     EntryLabel -> ["\nentry"]
     Jump offset -> ["jmp", showText offset]
@@ -175,7 +171,7 @@ yarn Fragment{..}
   collectClosure index instructions = V.concat
     [ V.singleton (Label index)
     , instructions
-    , V.fromList [Return, EndDef]
+    , V.fromList [Return]
     ]
 
 yarnDef
@@ -187,7 +183,7 @@ yarnDef Def{..} index = do
   return $ V.concat
     [ V.fromList [Comment defName, Label index]
     , instructions
-    , V.fromList [Return, EndDef]
+    , V.fromList [Return]
     ]
 
 yarnEntry :: Vector Typed -> Yarn (Vector Instruction)
@@ -196,7 +192,7 @@ yarnEntry terms = do
   return $ V.concat
     [ V.singleton EntryLabel
     , instructions
-    , V.singleton EndEntry
+    , V.singleton Return
     ]
 
 yarnTerm :: Typed -> Yarn (Vector Instruction)
