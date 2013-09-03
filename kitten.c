@@ -9,30 +9,33 @@ KittenObject** kitten_data;
 KittenObject** kitten_locals;
 
 KittenObject* kitten_ints[KITTEN_INT_POOL_SIZE];
+KittenObject* kitten_stderr;
+KittenObject* kitten_stdin;
+KittenObject* kitten_stdout;
 KittenObject* kitten_unit;
 
 void kitten_init(void) {
   const size_t CLOSURE_SIZE = 1024;
   kitten_closure = calloc(CLOSURE_SIZE, sizeof(KittenObject**));
-  kitten_closure += CLOSURE_SIZE;
 
   const size_t RETURN_SIZE = 1024;
   kitten_return = calloc(RETURN_SIZE, sizeof(KittenReturn));
-  kitten_return += RETURN_SIZE;
 
   const size_t DATA_SIZE = 1024;
   kitten_data = calloc(DATA_SIZE, sizeof(KittenObject*));
-  kitten_data += DATA_SIZE;
 
   const size_t LOCALS_SIZE = 1024;
   kitten_locals = calloc(LOCALS_SIZE, sizeof(KittenObject*));
-  kitten_locals += LOCALS_SIZE;
 
   for (int i = 0; i < KITTEN_INT_POOL_SIZE; ++i) {
-    kitten_ints[i] = kitten_new_int(i);
+    kitten_ints[i] = kitten_retain(kitten_new_int(i));
   }
 
-  kitten_unit = kitten_new_unit();
+  kitten_stderr = kitten_retain(kitten_new_handle(stderr));
+  kitten_stdin = kitten_retain(kitten_new_handle(stdin));
+  kitten_stdout = kitten_retain(kitten_new_handle(stdout));
+
+  kitten_unit = kitten_retain(kitten_new_unit());
 }
 
 KittenObject* kitten_retain(KittenObject* const object) {
@@ -41,6 +44,8 @@ KittenObject* kitten_retain(KittenObject* const object) {
 }
 
 KittenObject* kitten_release(KittenObject* const object) {
+  if (!object)
+    return NULL;
   if (--object->refcount > 0)
     return object;
   switch (object->type) {
@@ -162,5 +167,16 @@ KittenObject* kitten_new_vector(const size_t size, ...) {
     object->begin[i] = kitten_retain(va_arg(args, KittenObject*));
   }
   va_end(args);
+  return (KittenObject*)object;
+}
+
+KittenObject* kitten_make_vector(const size_t size) {
+  KittenVector* object = kitten_alloc(sizeof(KittenVector), KITTEN_VECTOR);
+  object->begin = calloc(size, sizeof(KittenObject*));
+  object->end = object->begin + size;
+  object->capacity = object->begin + size;
+  for (size_t i = 0; i < size; ++i) {
+    object->begin[i] = kitten_data[size - 1 - i];
+  }
   return (KittenObject*)object;
 }

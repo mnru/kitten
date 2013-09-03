@@ -61,15 +61,17 @@ toC instructions = V.cons preamble
   , envOffsets = N.empty
   }
   where
-  preamble =
-    "#include \"kitten.h\"\n\
-    \int main(int argc, char** argv) {\n\
-    \kitten_init();\n"
+  preamble = [qc|
+    #include "kitten.h"
+    int main(int argc, char** argv) {
+    kitten_init();
+    goto entry;
+  |]
 
   go instruction = (<>) <$> advance <*> case instruction of
 
     Act label names -> return [qc|
-      *kitten_data-- = kitten_retain(kitten_new_activation(
+      *++kitten_data = kitten_retain(kitten_new_activation(
         &&#{ global label },
         #{ T.intercalate ", "
           $ showText (V.length names)
@@ -80,19 +82,19 @@ toC instructions = V.cons preamble
       closedName (ClosedName (Name index))
         = [qc|kitten_retain(kitten_locals[#{ showText index }])|]
       closedName (ReclosedName (Name index))
-        = [qc|kitten_retain(*kitten_closure[#{ showText index }])|]
+        = [qc|kitten_retain((*kitten_closure)[#{ showText index }])|]
 
     Builtin builtin -> toCBuiltin builtin
 
     Call label -> do
       next <- newLabel 0
       return $
-        "*kitten_return-- = (KittenReturn){\n\
+        "*++kitten_return = (KittenReturn){\n\
         \  .address = &&" <> local next <> ", .closure = 0 };\n\
         \goto " <> global label <> ";"
 
     Closure index -> return $ T.concat
-      [ "*kitten_data-- = kitten_retain(*kitten_closure["
+      [ "*++kitten_data = kitten_retain((*kitten_closure)["
       , showText index
       , "]);"
       ]
@@ -105,9 +107,9 @@ toC instructions = V.cons preamble
       "return 0;\n\
       \}"
 
-    Enter -> return "*kitten_locals-- = *kitten_data++;"
+    Enter -> return "*++kitten_locals = *kitten_data--;"
 
-    EntryLabel -> return ""
+    EntryLabel -> return "entry:"
 
     Jump offset -> do
       label <- newLabel offset
@@ -117,7 +119,7 @@ toC instructions = V.cons preamble
       label <- newLabel offset
       return $
         "{\n\
-        \  KittenObject* top = *kitten_data++;\n\
+        \  KittenObject* top = *kitten_data--;\n\
         \  int test = top->as_int.value;\n\
         \  kitten_release(top);\n\
         \  if (!test) {\n\
@@ -129,13 +131,13 @@ toC instructions = V.cons preamble
       label <- newLabel offset
       return [qc|
         {
-          KittenObject* top = *kitten_data++;
+          KittenObject* top = *kitten_data--;
           int test = top->type == KITTEN_UNIT;
           if (test) {
             kitten_release(top);
             goto #{ local label };
           } else {
-            *kitten_data-- = kitten_retain(top->as_box.value);
+            *++kitten_data = kitten_retain(top->as_box.value);
             kitten_release(top);
           }
         }
@@ -145,9 +147,9 @@ toC instructions = V.cons preamble
       label <- newLabel offset
       return [qc|
         {
-          KittenObject* top = *kitten_data++;
+          KittenObject* top = *kitten_data--;
           int test = top->type == KITTEN_RIGHT;
-          *kitten_data-- = kitten_retain(top->as_box.value);
+          *++kitten_data = kitten_retain(top->as_box.value);
           if (test) {
             goto #{ local label };
           }
@@ -164,18 +166,23 @@ toC instructions = V.cons preamble
     |]
 
     Local index -> return [qc|
-      *kitten_data-- = kitten_retain(kitten_locals[#{ showText index }]);
+      *++kitten_data = kitten_retain(kitten_locals[#{ showText index }]);
     |]
 
-    MakeVector _size -> return "// TODO compile vector"
+    MakeVector size -> return [qc|
+      {
+        KittenObject* vector = kitten_make_vector(#{ showText size });
+        *++kitten_data = kitten_retain(vector);
+      }
+    |]
 
     Push x -> return [qc|
-      *kitten_data-- = kitten_retain(#{ toCValue x });
+      *++kitten_data = kitten_retain(#{ toCValue x });
     |]
 
     Return -> return [qc|
       {
-        KittenReturn call = *kitten_return++;
+        KittenReturn call = *kitten_return--;
         if (call.closure) {
           for (KittenObject** p = *kitten_closure; *p; ++p) {
             kitten_release(*p);
@@ -221,13 +228,13 @@ toCBuiltin builtin = case builtin of
     next <- newLabel 0
     return [qc|
       {
-        KittenObject* f = *kitten_data++;
+        KittenObject* f = *kitten_data--;
         const size_t size = f->as_activation.begin - f->as_activation.end;
-        *kitten_closure-- = calloc(size + 1, sizeof(KittenObject*));
+        *++kitten_closure = calloc(size + 1, sizeof(KittenObject*));
         for (size_t i = 0; i < size; ++i) {
-          *kitten_closure[i] = kitten_retain(f->as_activation.begin[i]);
+          (*kitten_closure)[i] = kitten_retain(f->as_activation.begin[i]);
         }
-        *kitten_return-- = (KittenReturn){
+        *++kitten_return = (KittenReturn){
           .address = &&#{ local next }, .closure = 1 };
         void* const function = f->as_activation.function;
         kitten_release(f);
@@ -235,23 +242,57 @@ toCBuiltin builtin = case builtin of
       }
     |]
 
-  Builtin.CharToInt -> return ""
+  Builtin.CharToInt -> return "// __char_to_int"
+
   Builtin.Close -> return [qc|
     fclose((*kitten_data)->as_handle.value);
-    kitten_release(*kitten_data++);
-    |]
+    kitten_release(*kitten_data--);
+  |]
 
   Builtin.DivFloat -> binary "float" "/"
   Builtin.DivInt -> binary "int" "/"
   Builtin.EqFloat -> relational "float" "=="
   Builtin.EqInt -> relational "int" "=="
-  Builtin.Exit -> return "exit((*kitten_data)->as_int.value);"
+
+  Builtin.Exit -> return [qc|
+    exit((*kitten_data)->as_int.value);
+  |]
+
   Builtin.GeFloat -> relational "float" ">="
   Builtin.GeInt -> relational "int" ">="
   Builtin.GtFloat -> relational "float" ">"
   Builtin.GtInt -> relational "int" ">"
+
+  Builtin.First -> return [qc|
+    {
+      KittenObject* a = *kitten_data;
+      *kitten_data = a->as_pair.first;
+      a->as_pair.first = NULL;
+      kitten_release(a);
+    }
+  |]
+
+  Builtin.FromLeft -> fromBox
+  Builtin.FromRight -> fromBox
+  Builtin.FromSome -> fromBox
+
+  Builtin.IntToChar -> return "// __int_to_char"
   Builtin.LeFloat -> relational "float" "<="
   Builtin.LeInt -> relational "int" "<="
+
+  Builtin.Left -> return [qc|
+    *kitten_data = kitten_retain(kitten_new_left(*kitten_data));
+  |]
+
+  Builtin.Length -> return [qc|
+    {
+      KittenObject* a = *kitten_data;
+      *kitten_data = kitten_retain(kitten_new_int(
+        a->as_vector.end - a->as_vector.begin));
+      kitten_release(a);
+    }
+  |]
+
   Builtin.LtFloat -> relational "float" "<"
   Builtin.LtInt -> relational "int" "<"
   Builtin.ModInt -> binary "int" "%"
@@ -261,47 +302,79 @@ toCBuiltin builtin = case builtin of
   Builtin.NeInt -> relational "int" "!="
   Builtin.NegFloat -> unary "float" "-"
   Builtin.NegInt -> unary "int" "-"
+
+  Builtin.None -> return [qc|
+    *++kitten_data = kitten_retain(kitten_unit);
+  |]
+
   Builtin.NotBool -> unary "int" "!"
   Builtin.NotInt -> unary "int" "~"
   Builtin.OrBool -> relational "int" "||"
   Builtin.OrInt -> binary "int" "|"
+
+  Builtin.Pair -> return [qc|
+    {
+      KittenObject* b = *kitten_data--;
+      KittenObject* a = *kitten_data--;
+      *++kitten_data = kitten_retain(kitten_new_pair(a, b));
+    }
+  |]
+
+  Builtin.Rest -> return [qc|
+    {
+      KittenObject* a = *kitten_data;
+      *kitten_data = a->as_pair.rest;
+      a->as_pair.rest = NULL;
+      kitten_release(a);
+    }
+  |]
+
+  Builtin.Right -> return [qc|
+    *kitten_data = kitten_retain(kitten_new_right(*kitten_data));
+  |]
+
+  Builtin.Some -> return [qc|
+    *kitten_data = kitten_retain(kitten_new_some(*kitten_data));
+  |]
+
+  Builtin.Stderr -> return [qc|
+    *++kitten_data = kitten_retain(kitten_stderr);
+  |]
+
+  Builtin.Stdin -> return [qc|
+    *++kitten_data = kitten_retain(kitten_stdin);
+  |]
+
+  Builtin.Stdout -> return [qc|
+    *++kitten_data = kitten_retain(kitten_stdout);
+  |]
+
   Builtin.SubFloat -> binary "float" "-"
   Builtin.SubInt -> binary "int" "-"
 
-  _ -> return $ "// TODO compile builtin " <> toText builtin
+  Builtin.UnsafePurify11 -> return "// __unsafe_purify11"
+
+  Builtin.XorBool -> relational "int" "!="
+  Builtin.XorInt -> relational "int" "^"
+
+  _ -> return [qc|
+    assert(!"TODO compile builtin #{ toText builtin }");
+  |]
 
   {-
   Builtin.AddVector
-  Builtin.First
-  Builtin.FromLeft
-  Builtin.FromRight
-  Builtin.FromSome
   Builtin.Get
   Builtin.GetLine
   Builtin.Impure
   Builtin.Init
-  Builtin.IntToChar
-  Builtin.Left
-  Builtin.Length
   Builtin.ModFloat
-  Builtin.None
   Builtin.OpenIn
   Builtin.OpenOut
-  Builtin.Pair
   Builtin.Print
-  Builtin.Rest
-  Builtin.Right
   Builtin.Set
   Builtin.ShowFloat
   Builtin.ShowInt
-  Builtin.Some
-  Builtin.Stderr
-  Builtin.Stdin
-  Builtin.Stdout
   Builtin.Tail
-  Builtin.UnsafePurify11
-  Builtin.XorBool
-  Builtin.XorInt
   -}
 
   where
@@ -309,16 +382,38 @@ toCBuiltin builtin = case builtin of
   -- a a -> a
   binary type_ operation = return [qc|
     {
-      KittenObject* b = *kitten_data++;
+      KittenObject* b = *kitten_data--;
       if ((*kitten_data)->refcount == 1) {
         (*kitten_data)->as_#{ type_ }.value
           #{ operation }= b->as_#{ type_ }.value;
       } else {
-        KittenObject* a = *kitten_data++;
-        *kitten_data-- = kitten_retain(kitten_new_#{ type_ }(
+        KittenObject* a = *kitten_data--;
+        *++kitten_data = kitten_retain(kitten_new_#{ type_ }(
           a->as_#{ type_ }.value #{ operation } b->as_#{ type_ }.value));
         kitten_release(a);
       }
+      kitten_release(b);
+    }
+  |]
+
+  fromBox = return [qc|
+    {
+      KittenObject* a = *kitten_data;
+      *kitten_data = a->as_box.value;
+      a->as_box.value = NULL;
+      kitten_release(a);
+    }
+  |]
+
+  -- a a -> Bool
+  relational type_ operation = return [qc|
+    {
+      KittenObject* b = *kitten_data--;
+      KittenObject* a = *kitten_data--;
+      *++kitten_data = kitten_retain(kitten_new_int(
+        a->as_#{ type_ }.value
+        #{ operation } b->as_#{ type_ }.value));
+      kitten_release(a);
       kitten_release(b);
     }
   |]
@@ -330,23 +425,10 @@ toCBuiltin builtin = case builtin of
         (*kitten_data)->as_#{ type_ }.value =
           #{ operation }(*kitten_data)->as_#{ type_ }.value;
       } else {
-        KittenObject* a = *kitten_data++;
-        *kitten_data-- = kitten_retain(kitten_new_#{ type_ }(
+        KittenObject* a = *kitten_data--;
+        *++kitten_data = kitten_retain(kitten_new_#{ type_ }(
           #{ operation }a->as_#{ type_ }.value));
         kitten_release(a);
       }
-    }
-  |]
-
-  -- a a -> Bool
-  relational type_ operation = return [qc|
-    {
-      KittenObject* b = *kitten_data++;
-      KittenObject* a = *kitten_data++;
-      *kitten_data-- = kitten_retain(kitten_new_int(
-        a->as_#{ type_ }.value
-        #{ operation } b->as_#{ type_ }.value));
-      kitten_release(a);
-      kitten_release(b);
     }
   |]

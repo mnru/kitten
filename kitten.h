@@ -1,6 +1,7 @@
 #ifndef KITTEN_H
 #define KITTEN_H
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -99,6 +100,9 @@ extern KittenObject** kitten_locals;
 #define KITTEN_INT_POOL_SIZE 128
 
 extern KittenObject* kitten_ints[KITTEN_INT_POOL_SIZE];
+extern KittenObject* kitten_stderr;
+extern KittenObject* kitten_stdin;
+extern KittenObject* kitten_stdout;
 extern KittenObject* kitten_unit;
 
 void kitten_init(void);
@@ -116,5 +120,7 @@ KittenObject* kitten_new_right(KittenObject* value);
 KittenObject* kitten_new_some(KittenObject* value);
 KittenObject* kitten_new_unit();
 KittenObject* kitten_new_vector(size_t size, ...);
+
+KittenObject* kitten_make_vector(size_t size);
 
 #endif
