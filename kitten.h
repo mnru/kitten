@@ -7,121 +7,108 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-enum KittenType {
-  KITTEN_ACTIVATION,
-  KITTEN_FLOAT,
-  KITTEN_HANDLE,
-  KITTEN_INT,
-  KITTEN_LEFT,
-  KITTEN_PAIR,
-  KITTEN_RIGHT,
-  KITTEN_SOME,
-  KITTEN_UNIT,
-  KITTEN_VECTOR
-};
+typedef enum KType {
+  K_UNBOXED = 0x00,
+  K_FLOAT = K_UNBOXED,
+  K_INT,
+  K_NONE,
+  K_UNIT,
+  K_BOXED = 0x10,
+  K_ACTIVATION = K_BOXED,
+  K_HANDLE,
+  K_LEFT,
+  K_PAIR,
+  K_RIGHT,
+  K_SOME,
+  K_VECTOR
+} KType;
 
-union KittenObject;
+typedef struct KObject {
+  uint64_t data;
+  uint64_t type;
+} KObject;
 
-typedef struct KittenActivation {
-  uint16_t type;
-  uint16_t refcount;
+typedef struct KActivation {
+  uint64_t refs;
   void* function;
-  union KittenObject** begin;
-  union KittenObject** end;
-} KittenActivation;
+  KObject* begin;
+  KObject* end;
+} KActivation;
 
-typedef struct KittenBox {
-  uint16_t type;
-  uint16_t refcount;
-  union KittenObject* value;
-} KittenBox;
-
-typedef struct KittenFloat {
-  uint16_t type;
-  uint16_t refcount;
-  double value;
-} KittenFloat;
-
-typedef struct KittenHandle {
-  uint16_t type;
-  uint16_t refcount;
+typedef struct KHandle {
+  uint64_t refs;
   FILE* value;
-} KittenHandle;
+} KHandle;
 
-typedef struct KittenInt {
-  uint16_t type;
-  uint16_t refcount;
-  int64_t value;
-} KittenInt;
+typedef struct KPair {
+  uint64_t refs;
+  KObject first;
+  KObject rest;
+} KPair;
 
-typedef struct KittenPair {
-  uint16_t type;
-  uint16_t refcount;
-  union KittenObject* first;
-  union KittenObject* rest;
-} KittenPair;
+typedef struct KSole {
+  uint64_t refs;
+  KObject value;
+} KSole;
 
-typedef struct KittenUnit {
-  uint16_t type;
-  uint16_t refcount;
-} KittenUnit;
+typedef struct KVector {
+  uint64_t refs;
+  KObject* begin;
+  KObject* end;
+  KObject* capacity;
+} KVector;
 
-typedef struct KittenVector {
-  uint16_t type;
-  uint16_t refcount;
-  union KittenObject** begin;
-  union KittenObject** end;
-  union KittenObject** capacity;
-} KittenVector;
+typedef KSole KLeft, KRight, KSome;
 
-typedef union KittenObject {
-  uint16_t type;
-  uint16_t refcount;
-  KittenActivation as_activation;
-  KittenBox as_box;
-  KittenFloat as_float;
-  KittenHandle as_handle;
-  KittenInt as_int;
-  KittenPair as_pair;
-  KittenUnit as_unit;
-  KittenVector as_vector;
-} KittenObject;
+typedef union KBoxed {
+  uint64_t refs;
+  KActivation as_activation;
+  KHandle as_handle;
+  KLeft as_left;
+  KPair as_pair;
+  KRight as_right;
+  KSome as_some;
+  KVector as_vector;
+} KBoxed;
 
-typedef struct KittenReturn {
+typedef struct KR {
   void* address;
   int closure;
-} KittenReturn;
+} KR;
 
-extern KittenReturn* kitten_return;
-extern KittenObject*** kitten_closure;
-extern KittenObject** kitten_data;
-extern KittenObject** kitten_locals;
+extern KR* k_return;
+extern KObject** k_closure;
+extern KObject* k_data;
+extern KObject* k_locals;
 
-#define KITTEN_INT_POOL_SIZE 128
+void k_init(void);
 
-extern KittenObject* kitten_ints[KITTEN_INT_POOL_SIZE];
-extern KittenObject* kitten_stderr;
-extern KittenObject* kitten_stdin;
-extern KittenObject* kitten_stdout;
-extern KittenObject* kitten_unit;
+KObject k_retain(KObject object);
+KObject k_release(KObject object);
 
-void kitten_init(void);
+KObject k_activation(void (*function)(void), size_t size, ...);
+KObject k_float(double value);
+KObject k_handle(FILE* value);
+KObject k_int(int64_t value);
+KObject k_left(KObject value);
+KObject k_none(void);
+KObject k_pair(KObject first, KObject rest);
+KObject k_right(KObject value);
+KObject k_some(KObject value);
+KObject k_unit(void);
+KObject k_vector(size_t size, ...);
 
-KittenObject* kitten_retain(KittenObject* object);
-KittenObject* kitten_release(KittenObject* object);
+KObject k_append_vector(KObject a, KObject b);
+KObject k_make_vector(size_t size);
 
-KittenObject* kitten_new_activation(void (*function)(void), size_t size, ...);
-KittenObject* kitten_new_float(double value);
-KittenObject* kitten_new_handle(FILE* value);
-KittenObject* kitten_new_int(int64_t value);
-KittenObject* kitten_new_left(KittenObject* value);
-KittenObject* kitten_new_pair(KittenObject* first, KittenObject* rest);
-KittenObject* kitten_new_right(KittenObject* value);
-KittenObject* kitten_new_some(KittenObject* value);
-KittenObject* kitten_new_unit();
-KittenObject* kitten_new_vector(size_t size, ...);
-
-KittenObject* kitten_append_vector(KittenObject* a, KittenObject* b);
-KittenObject* kitten_make_vector(size_t size);
+#define k_drop_data() (--k_data)
+#define k_pop_data() (*k_data--)
+#define k_push_data(x) (*++k_data = (x))
+#define k_drop_locals() (--k_locals)
+#define k_pop_locals() (*k_locals--)
+#define k_push_locals(x) (*++k_locals = (x))
+#define k_get_local(i) (*(k_locals - (i)))
+#define k_get_closure(i) ((*k_closure)[(i)])
+#define k_pop_return() (*k_return--)
 
 #endif

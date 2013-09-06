@@ -3,199 +3,191 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-KittenReturn* kitten_return;
-KittenObject*** kitten_closure;
-KittenObject** kitten_data;
-KittenObject** kitten_locals;
+KR* k_return;
+KObject** k_closure;
+KObject* k_data;
+KObject* k_locals;
 
-KittenObject* kitten_ints[KITTEN_INT_POOL_SIZE];
-KittenObject* kitten_stderr;
-KittenObject* kitten_stdin;
-KittenObject* kitten_stdout;
-KittenObject* kitten_unit;
-
-void kitten_init(void) {
+void k_init(void) {
   const size_t CLOSURE_SIZE = 1024;
-  kitten_closure = calloc(CLOSURE_SIZE, sizeof(KittenObject**));
+  k_closure = calloc(CLOSURE_SIZE, sizeof(KObject*));
 
   const size_t RETURN_SIZE = 1024;
-  kitten_return = calloc(RETURN_SIZE, sizeof(KittenReturn));
+  k_return = calloc(RETURN_SIZE, sizeof(KR));
 
   const size_t DATA_SIZE = 1024;
-  kitten_data = calloc(DATA_SIZE, sizeof(KittenObject*));
+  k_data = calloc(DATA_SIZE, sizeof(KObject));
 
   const size_t LOCALS_SIZE = 1024;
-  kitten_locals = calloc(LOCALS_SIZE, sizeof(KittenObject*));
-
-  for (int i = 0; i < KITTEN_INT_POOL_SIZE; ++i) {
-    kitten_ints[i] = kitten_retain(kitten_new_int(i));
-  }
-
-  kitten_stderr = kitten_retain(kitten_new_handle(stderr));
-  kitten_stdin = kitten_retain(kitten_new_handle(stdin));
-  kitten_stdout = kitten_retain(kitten_new_handle(stdout));
-
-  kitten_unit = kitten_retain(kitten_new_unit());
+  k_locals = calloc(LOCALS_SIZE, sizeof(KObject));
 }
 
-KittenObject* kitten_retain(KittenObject* const object) {
-  ++object->refcount;
+static int is_boxed_type(const KType type) {
+  return type >= K_BOXED;
+}
+
+static uint64_t* boxed_refs(KObject* const object) {
+  return &(*((KBoxed**)&object->data))->refs;
+}
+
+KObject k_retain(const KObject object) {
+  if (is_boxed_type(object.type))
+    ++(*((KBoxed**)&object.data))->refs;
   return object;
 }
 
-KittenObject* kitten_release(KittenObject* const object) {
-  if (!object)
-    return NULL;
-  if (--object->refcount > 0)
+KObject k_release(KObject object) {
+
+  if (!is_boxed_type(object.type))
     return object;
-  switch (object->type) {
-  case KITTEN_ACTIVATION:
-    for (KittenObject** p = object->as_activation.begin;
-         p != object->as_activation.end; ++p) {
-      kitten_release(*p);
-    }
-    break;
-  case KITTEN_FLOAT:
-    break;
-  case KITTEN_HANDLE:
-    fclose(object->as_handle.value);
-    break;
-  case KITTEN_INT:
-    break;
-  case KITTEN_LEFT:
-  case KITTEN_RIGHT:
-  case KITTEN_SOME:
-    kitten_release(object->as_box.value);
-    break;
-  case KITTEN_PAIR:
-    kitten_release(object->as_pair.first);
-    kitten_release(object->as_pair.rest);
-    break;
-  case KITTEN_UNIT:
-    break;
-  case KITTEN_VECTOR:
-    for (KittenObject** p = object->as_vector.begin;
-         p != object->as_vector.end; ++p) {
-      kitten_release(*p);
-    }
-    break;
-  }
-  free(object);
-  return NULL;
-}
 
-void* kitten_alloc(const size_t size, const uint16_t type) {
-  KittenObject* object = malloc(size);
-  object->type = type;
-  object->refcount = 0;
+  if (--*boxed_refs(&object) > 0)
+    return object;
+
+  // TODO Free members.
+
+  free((KObject*)object.data);
   return object;
+
 }
 
-KittenObject* kitten_new_activation(
-  void (*const function)(void), const size_t size, ...) {
-  KittenActivation* object = kitten_alloc(
-    sizeof(KittenActivation), KITTEN_ACTIVATION);
+KObject k_activation(void (*const function)(void), const size_t size, ...) {
+  KActivation* const object = calloc(1, sizeof(KActivation));
+  object->refs = 1;
   object->function = function;
-  object->begin = calloc(size, sizeof(KittenObject*));
+  object->begin = calloc(size, sizeof(KObject));
   object->end = object->begin + size;
   va_list args;
   va_start(args, size);
   for (size_t i = 0; i < size; ++i) {
-    object->begin[i] = kitten_retain(va_arg(args, KittenObject*));
+    object->begin[i] = k_retain(va_arg(args, KObject));
   }
-  return (KittenObject*)object;
+  return (KObject) {
+    .data = *((uint64_t*)&object),
+    .type = K_ACTIVATION,
+  };
 }
 
-KittenObject* kitten_new_float(const double value) {
-  KittenFloat* object = kitten_alloc(sizeof(KittenFloat), KITTEN_FLOAT);
-  object->value = value;
-  return (KittenObject*)object;
+KObject k_float(const double value) {
+  return (KObject) {
+    .data = *((uint64_t*)&value),
+    .type = K_FLOAT,
+  };
 }
 
-KittenObject* kitten_new_handle(FILE* const value) {
-  KittenHandle* object = kitten_alloc(sizeof(KittenHandle), KITTEN_HANDLE);
-  object->value = value;
-  return (KittenObject*)object;
+KObject k_handle(FILE* const value) {
+  return (KObject) {
+    .data = *((uint64_t*)&value),
+    .type = K_FLOAT,
+  };
 }
 
-KittenObject* kitten_new_int(const int64_t value) {
-  KittenInt* object = kitten_alloc(sizeof(KittenInt), KITTEN_INT);
-  object->value = value;
-  return (KittenObject*)object;
+KObject k_int(const int64_t value) {
+  return (KObject) {
+    .data = *((uint64_t*)&value),
+    .type = K_FLOAT,
+  };
 }
 
-KittenObject* kitten_new_left(KittenObject* const value) {
-  KittenBox* object = kitten_alloc(sizeof(KittenBox), KITTEN_LEFT);
-  object->value = value;
-  return (KittenObject*)object;
+static KObject k_sole(const KObject value) {
+  const KObject result = {
+    .data = (uint64_t)calloc(1, sizeof(KObject)),
+    .type = K_UNIT  // FIXME?
+  };
+  *((KObject*)result.data) = k_retain(value);
+  return result;
 }
 
-KittenObject* kitten_new_pair(
-  KittenObject* const first,
-  KittenObject* const rest) {
-  KittenPair* object = kitten_alloc(sizeof(KittenPair), KITTEN_PAIR);
-  object->first = first;
-  object->rest = rest;
-  return (KittenObject*)object;
+KObject k_left(const KObject value) {
+  KObject result = k_sole(value);
+  result.type = K_LEFT;
+  return result;
 }
 
-KittenObject* kitten_new_right(KittenObject* const value) {
-  KittenBox* object = kitten_alloc(sizeof(KittenBox), KITTEN_RIGHT);
-  object->value = value;
-  return (KittenObject*)object;
+KObject k_none() {
+  return (KObject) {
+    .data = 0,
+    .type = K_NONE,
+  };
 }
 
-KittenObject* kitten_new_some(KittenObject* const value) {
-  KittenBox* object = kitten_alloc(sizeof(KittenBox), KITTEN_SOME);
-  object->value = value;
-  return (KittenObject*)object;
+KObject k_pair(const KObject first, const KObject rest) {
+  KPair* pair = calloc(1, sizeof(KPair));
+  pair->first = k_retain(first);
+  pair->rest = k_retain(rest);
+  return (KObject) {
+    .data = (uint64_t)pair,
+    .type = K_PAIR,
+  };
 }
 
-KittenObject* kitten_new_unit(KittenObject* const value) {
-  KittenBox* object = kitten_alloc(sizeof(KittenUnit), KITTEN_UNIT);
-  return (KittenObject*)object;
+KObject k_right(const KObject value) {
+  KObject result = k_sole(value);
+  result.type = K_LEFT;
+  return result;
 }
 
-KittenObject* kitten_append_vector(
-  KittenObject* const a, KittenObject* const b) {
-  KittenVector* object = kitten_alloc(sizeof(KittenVector), KITTEN_VECTOR);
+KObject k_some(const KObject value) {
+  KObject result = k_sole(value);
+  result.type = K_SOME;
+  return result;
+}
+
+KObject k_unit() {
+  return (KObject) {
+    .data = 0,
+    .type = K_UNIT,
+  };
+}
+
+/*
+KObject* k_append_vector(
+  KObject* const a, KObject* const b) {
+  KVector* object = k_alloc(sizeof(KVector), K_VECTOR);
   const size_t size = a->as_vector.end - a->as_vector.begin
     + b->as_vector.end - b->as_vector.begin;
-  object->begin = calloc(size, sizeof(KittenObject*));
+  object->begin = calloc(size, sizeof(KObject*));
   object->capacity = object->begin + size;
   object->end = object->begin;
-  for (KittenObject** from = a->as_vector.begin;
+  for (KObject** from = a->as_vector.begin;
        from != a->as_vector.end; ++from) {
-    *object->end++ = kitten_retain(*from);
+    *object->end++ = k_retain(*from);
   }
-  for (KittenObject** from = b->as_vector.begin;
+  for (KObject** from = b->as_vector.begin;
        from != b->as_vector.end; ++from) {
-    *object->end++ = kitten_retain(*from);
+    *object->end++ = k_retain(*from);
   }
-  return (KittenObject*)object;
+  return (KObject*)object;
 }
+*/
 
-KittenObject* kitten_new_vector(const size_t size, ...) {
+KObject k_vector(const size_t size, ...) {
   va_list args;
   va_start(args, size);
-  KittenVector* object = kitten_alloc(sizeof(KittenVector), KITTEN_VECTOR);
-  object->begin = calloc(size, sizeof(KittenObject*));
-  object->end = object->begin + size;
-  object->capacity = object->begin + size;
+  KVector* vector = calloc(1, sizeof(KVector));
+  vector->begin = calloc(size, sizeof(KObject));
+  vector->end = vector->begin + size;
+  vector->capacity = vector->begin + size;
   for (size_t i = 0; i < size; ++i) {
-    object->begin[i] = kitten_retain(va_arg(args, KittenObject*));
+    vector->begin[i] = k_retain(va_arg(args, KObject));
   }
   va_end(args);
-  return (KittenObject*)object;
+  return (KObject) {
+    .data = (uint64_t)vector,
+    .type = K_VECTOR
+  };
 }
 
-KittenObject* kitten_make_vector(const size_t size) {
-  KittenVector* object = kitten_alloc(sizeof(KittenVector), KITTEN_VECTOR);
-  object->begin = calloc(size, sizeof(KittenObject*));
-  object->end = object->begin + size;
-  object->capacity = object->begin + size;
+KObject k_make_vector(const size_t size) {
+  KVector* vector = calloc(1, sizeof(KVector));
+  vector->begin = calloc(size, sizeof(KObject*));
+  vector->end = vector->begin + size;
+  vector->capacity = vector->begin + size;
   for (size_t i = 0; i < size; ++i) {
-    object->begin[i] = kitten_data[size - 1 - i];
+    vector->begin[i] = k_data[size - 1 - i];
   }
-  return (KittenObject*)object;
+  return (KObject) {
+    .data = (uint64_t)vector,
+    .type = K_VECTOR
+  };
 }
