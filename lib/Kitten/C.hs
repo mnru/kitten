@@ -69,7 +69,7 @@ toC instructions = V.concat
     #include "kitten.h"
     int main(int argc, char** argv) {
       k_init();
-      *++k_return = (KR){ .address = &&exit, .closure = 0 };
+      k_push_return(((KR){ .address = &&exit, .closure = 0 }));
       goto entry;
   |]
 
@@ -100,7 +100,7 @@ toC instructions = V.concat
     Call label -> do
       next <- newLabel 0
       return [qc|
-        *++k_return = (KR){ .address = &&#{ local next }, .closure = 0 };
+        k_push_return(((KR){ .address = &&#{ local next }, .closure = 0 }));
         goto #{ global label };
       |]
 
@@ -179,7 +179,7 @@ toC instructions = V.concat
         KR call = k_pop_return();
         if (call.closure) {
           // TODO Release closure.
-          --k_closure;
+          k_drop_closure();
         }
         goto *call.address;
       }
@@ -211,40 +211,38 @@ toCBuiltin builtin = case builtin of
   Builtin.AddInt -> binary "int" "+"
 
   -- TODO
-  {-
   Builtin.AddVector -> return [qc|
     {
-      KObject* b = *k_data--;
-      KObject* a = *k_data--;
-      *++k_data = k_append_vector(a, b);
+      KObject b = k_pop_data();
+      KObject a = k_pop_data();
+      k_push_data(k_append_vector(a, b));
       k_release(b);
       k_release(a);
     }
   |]
-  -}
 
   Builtin.AndBool -> relational "int" "&&"
   Builtin.AndInt -> binary "int" "&"
 
-  -- TODO
-  {-
   Builtin.Apply -> do
     next <- newLabel 0
     return [qc|
       {
-        KObject* f = k_pop_data();
-        const size_t size = f->as_activation.begin - f->as_activation.end;
-        *++k_closure = calloc(size + 1, sizeof(KObject*));
+        KObject f = k_pop_data();
+        const size_t size
+          = ((KActivation*)f.data)->end
+          - ((KActivation*)f.data)->begin;
+        k_push_closure(calloc(size, sizeof(KObject)));
         for (size_t i = 0; i < size; ++i) {
-          (*k_closure)[i] = k_retain(f->as_activation.begin[i]);
+          (*k_closure)[i]
+            = k_retain(((KActivation*)f.data)->begin[i]);
         }
-        *++k_return = (KR){ .address = &&#{ local next }, .closure = 1 };
-        void* const function = f->as_activation.function;
+        k_push_return(((KR){ .address = &&#{ local next }, .closure = 1 }));
+        void* const function = ((KActivation*)f.data)->function;
         k_release(f);
         goto *function;
       }
     |]
-  -}
 
   Builtin.CharToInt -> return "// __char_to_int"
 
@@ -369,8 +367,8 @@ toCBuiltin builtin = case builtin of
   {-
   Builtin.ShowFloat -> return [qc|
     {
-      KObject* a = *k_data;
-      *k_data = k_retain(k_vector(0));
+      KObject* a = k_data[0];
+      k_data[0] = k_retain(k_vector(0));
       k_release(a);
     }
   |]
@@ -378,8 +376,8 @@ toCBuiltin builtin = case builtin of
   -- TODO
   Builtin.ShowInt -> return [qc|
     {
-      KObject* a = *k_data;
-      *k_data = k_retain(k_vector(0));
+      KObject* a = k_data[0];
+      k_data[0] = k_retain(k_vector(0));
       k_release(a);
     }
   |]
@@ -431,26 +429,18 @@ toCBuiltin builtin = case builtin of
 
   -- a a -> a
   binary :: (Monad m) => Text -> Text -> m Text
-  binary _type_ _operation = return [qc|
-    assert(!"TODO binary");
-  |]
-  {-
-  return [qc|
+  binary type_ operation = return [qc|
     {
-      KObject* b = *k_data--;
-      if ((*k_data)->refcount == 1) {
-        (*k_data)->as_#{ type_ }.value
-          #{ operation }= b->as_#{ type_ }.value;
-      } else {
-        KObject* a = *k_data--;
-        *++k_data = k_retain(k_#{ type_ }(
-          a->as_#{ type_ }.value #{ operation } b->as_#{ type_ }.value));
-        k_release(a);
-      }
+      KObject b = k_pop_data();
+      KObject a = k_pop_data();
+      k_push_data(k_retain(k_#{ type_ }(
+        *((k_#{ type_ }_t*)&a.data)
+        #{ operation }
+        *((k_#{ type_ }_t*)&b.data))));
       k_release(b);
+      k_release(a);
     }
   |]
-  -}
 
   fromBox = return [qc|
     {
@@ -461,8 +451,17 @@ toCBuiltin builtin = case builtin of
 
   -- a a -> Bool
   relational :: (Monad m) => Text -> Text -> m Text
-  relational _type_ _operation = return [qc|
-    assert(!"TODO relational");
+  relational type_ operation = return [qc|
+    {
+      KObject b = k_pop_data();
+      KObject a = k_pop_data();
+      k_push_data(k_retain(k_bool(
+        *((k_#{ type_ }_t*)&a.data)
+        #{ operation }
+        *((k_#{ type_ }_t*)&b.data))));
+      k_release(b);
+      k_release(a);
+    }
   |]
 
   {-

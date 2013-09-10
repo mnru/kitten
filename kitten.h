@@ -7,9 +7,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef int k_bool_t;
+typedef uint32_t k_char_t;
+typedef double k_float_t;
+typedef FILE* k_handle_t;
+typedef int64_t k_int_t;
+
 typedef enum KType {
   K_UNBOXED = 0x00,
-  K_FLOAT = K_UNBOXED,
+  K_BOOL = K_UNBOXED,
+  K_CHAR,
+  K_FLOAT,
   K_INT,
   K_NONE,
   K_UNIT,
@@ -87,6 +95,8 @@ KObject k_retain(KObject object);
 KObject k_release(KObject object);
 
 KObject k_activation(void (*function)(void), size_t size, ...);
+KObject k_bool(int value);
+KObject k_char(uint32_t value);
 KObject k_float(double value);
 KObject k_handle(FILE* value);
 KObject k_int(int64_t value);
@@ -101,14 +111,17 @@ KObject k_vector(size_t size, ...);
 KObject k_append_vector(KObject a, KObject b);
 KObject k_make_vector(size_t size);
 
-#define k_drop_data() (--k_data)
-#define k_pop_data() (*k_data--)
-#define k_push_data(x) (*++k_data = (x))
-#define k_drop_locals() (--k_locals)
-#define k_pop_locals() (*k_locals--)
-#define k_push_locals(x) (*++k_locals = (x))
-#define k_get_local(i) (*(k_locals - (i)))
-#define k_get_closure(i) ((*k_closure)[(i)])
-#define k_pop_return() (*k_return--)
+#define k_drop_closure()   (--k_closure)
+#define k_drop_data()      (--k_data)
+#define k_drop_locals()    (--k_locals)
+#define k_get_closure(i)   ((*k_closure)[(i)])
+#define k_get_local(i)     (*(k_locals - (i)))
+#define k_pop_data()       (*k_data--)
+#define k_pop_locals()     (*k_locals--)
+#define k_pop_return()     (*k_return--)
+#define k_push_closure(x)  (*++k_closure = (x))
+#define k_push_data(x)     (*++k_data = (x))
+#define k_push_locals(x)   (*++k_locals = (x))
+#define k_push_return(x)   (*++k_return = (x))
 
 #endif

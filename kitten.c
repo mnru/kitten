@@ -52,40 +52,54 @@ KObject k_release(KObject object) {
 }
 
 KObject k_activation(void (*const function)(void), const size_t size, ...) {
-  KActivation* const object = calloc(1, sizeof(KActivation));
-  object->refs = 1;
-  object->function = function;
-  object->begin = calloc(size, sizeof(KObject));
-  object->end = object->begin + size;
+  KActivation* const activation = calloc(1, sizeof(KActivation));
+  activation->refs = 1;
+  activation->function = function;
+  activation->begin = calloc(size, sizeof(KObject));
+  activation->end = activation->begin + size;
   va_list args;
   va_start(args, size);
   for (size_t i = 0; i < size; ++i) {
-    object->begin[i] = k_retain(va_arg(args, KObject));
+    activation->begin[i] = k_retain(va_arg(args, KObject));
   }
   return (KObject) {
-    .data = *((uint64_t*)&object),
-    .type = K_ACTIVATION,
+    .data = (uint64_t)activation,
+    .type = K_ACTIVATION
   };
 }
 
-KObject k_float(const double value) {
+KObject k_bool(const k_bool_t value) {
   return (KObject) {
-    .data = *((uint64_t*)&value),
-    .type = K_FLOAT,
+    .data = !!value,
+    .type = K_BOOL
   };
 }
 
-KObject k_handle(FILE* const value) {
+KObject k_char(const k_char_t value) {
   return (KObject) {
-    .data = *((uint64_t*)&value),
-    .type = K_FLOAT,
+    .data = value,
+    .type = K_CHAR
   };
 }
 
-KObject k_int(const int64_t value) {
+KObject k_float(const k_float_t value) {
   return (KObject) {
     .data = *((uint64_t*)&value),
-    .type = K_FLOAT,
+    .type = K_FLOAT
+  };
+}
+
+KObject k_handle(const k_handle_t value) {
+  return (KObject) {
+    .data = *((uint64_t*)&value),
+    .type = K_FLOAT
+  };
+}
+
+KObject k_int(const k_int_t value) {
+  return (KObject) {
+    .data = value,
+    .type = K_INT
   };
 }
 
@@ -107,7 +121,7 @@ KObject k_left(const KObject value) {
 KObject k_none() {
   return (KObject) {
     .data = 0,
-    .type = K_NONE,
+    .type = K_NONE
   };
 }
 
@@ -117,7 +131,7 @@ KObject k_pair(const KObject first, const KObject rest) {
   pair->rest = k_retain(rest);
   return (KObject) {
     .data = (uint64_t)pair,
-    .type = K_PAIR,
+    .type = K_PAIR
   };
 }
 
@@ -136,30 +150,32 @@ KObject k_some(const KObject value) {
 KObject k_unit() {
   return (KObject) {
     .data = 0,
-    .type = K_UNIT,
+    .type = K_UNIT
   };
 }
 
-/*
-KObject* k_append_vector(
-  KObject* const a, KObject* const b) {
-  KVector* object = k_alloc(sizeof(KVector), K_VECTOR);
-  const size_t size = a->as_vector.end - a->as_vector.begin
-    + b->as_vector.end - b->as_vector.begin;
-  object->begin = calloc(size, sizeof(KObject*));
-  object->capacity = object->begin + size;
-  object->end = object->begin;
-  for (KObject** from = a->as_vector.begin;
-       from != a->as_vector.end; ++from) {
-    *object->end++ = k_retain(*from);
+KObject k_append_vector(
+  const KObject a, const KObject b) {
+  KVector* vector = calloc(1, sizeof(KVector));
+  const size_t size
+    = ((KVector*)a.data)->end - ((KVector*)a.data)->begin
+    + ((KVector*)b.data)->end - ((KVector*)b.data)->begin;
+  vector->begin = calloc(size, sizeof(KObject));
+  vector->capacity = vector->begin + size;
+  vector->end = vector->begin;
+  for (KObject* from = ((KVector*)a.data)->begin;
+       from != ((KVector*)a.data)->end; ++from) {
+    *vector->end++ = k_retain(*from);
   }
-  for (KObject** from = b->as_vector.begin;
-       from != b->as_vector.end; ++from) {
-    *object->end++ = k_retain(*from);
+  for (KObject* from = ((KVector*)b.data)->begin;
+       from != ((KVector*)b.data)->end; ++from) {
+    *vector->end++ = k_retain(*from);
   }
-  return (KObject*)object;
+  return (KObject) {
+    .data = (uint64_t)vector,
+    .type = K_VECTOR
+  };
 }
-*/
 
 KObject k_vector(const size_t size, ...) {
   va_list args;
