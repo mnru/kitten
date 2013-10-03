@@ -288,6 +288,17 @@ toCBuiltin builtin = case builtin of
     }
   |]
 
+  Builtin.If -> do
+    apply <- toCBuiltin Builtin.Apply
+    return [qc|
+      {
+        KObject true = k_pop_data();
+        KObject cond = k_pop_data();
+        k_push_data(true);
+        #{ apply }
+      }
+    |]
+
   Builtin.IntToChar -> return "// __int_to_char"
   Builtin.LeFloat -> relational "float" "<="
   Builtin.LeInt -> relational "int" "<="
