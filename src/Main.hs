@@ -77,7 +77,7 @@ main = do
         Left compileErrors -> do
           printCompileErrors compileErrors
           exitFailure
-        Right (prelude, _type) -> return prelude
+        Right (prelude, _typed, _type) -> return prelude
 
       unless (V.null fragmentTerms) $ do
         hPutStrLn stderr "Prelude includes executable code."
@@ -114,10 +114,12 @@ interpretAll entryPoints compileMode prelude config
       Left compileErrors -> do
         printCompileErrors compileErrors
         exitFailure
-      Right (result, _type) -> case compileMode of
+      Right (result, typed, _type) -> case compileMode of
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
-        InterpretMode -> void $ interpret [] prelude result
+        InterpretMode -> do
+          print typed
+          void $ interpret [] prelude result
 
 parseArguments :: IO Arguments
 parseArguments = do

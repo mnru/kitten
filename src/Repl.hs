@@ -136,7 +136,7 @@ replCompile update = do
   mCompiled <- liftIO . compile . update =<< compileConfig
   case mCompiled of
     Left errors -> liftIO (printCompileErrors errors) >> return Nothing
-    Right result -> return (Just result)
+    Right (terms, _typed, type_) -> return $ Just (terms, type_)
 
 typeOf :: Text -> ReplInput ()
 typeOf line = do
