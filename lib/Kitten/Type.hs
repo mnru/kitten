@@ -46,7 +46,6 @@ data Type a where
   Handle :: !Location -> Type Scalar
   Int :: !Location -> Type Scalar
   Named :: !Text -> !Location -> Type Scalar
-  Test :: Type a
   Unit :: !Location -> Type Scalar
   Var :: !Name -> !Location -> Type a
   Vector :: !(Type Scalar) -> !Location -> Type Scalar
@@ -56,9 +55,6 @@ data Type a where
   IOEffect :: !Location -> Type Effect
 
 instance Eq (Type a) where
-  Test == _ = True
-  _ == Test = True
-
   (a :& b) == (c :& d) = (a, b) == (c, d)
   (a :. b) == (c :. d) = (a, b) == (c, d)
   (:?) a == (:?) b = a == b
@@ -101,7 +97,6 @@ instance ToText (Type a) where
     Handle{} -> "Handle"
     Int{} -> "Int"
     Named name _ -> name
-    Test{} -> ""
     Var (Name index) _ -> "t" <> showText index
     Unit{} -> "()"
     Vector t _ -> T.concat ["[", toText t, "]"]

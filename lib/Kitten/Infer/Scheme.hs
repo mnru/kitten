@@ -101,7 +101,6 @@ class Free a where
 instance Free Effect where
   free type_ = case type_ of
     a :+ b -> free a <> free b
-    Test -> mempty
     NoEffect _ -> mempty
     IOEffect _ -> mempty
     Var name _ -> ([], [], [effect name])
@@ -110,7 +109,6 @@ instance Free Row where
   free type_ = case type_ of
     a :. b -> free a <> free b
     Empty{} -> mempty
-    Test{} -> mempty
     Var name _ -> ([row name], [], [])
 
 instance Free Scalar where
@@ -125,7 +123,6 @@ instance Free Scalar where
     Handle{} -> mempty
     Int{} -> mempty
     Named{} -> mempty
-    Test{} -> mempty
     Var name _ -> ([], [scalar name], [])
     Unit{} -> mempty
     Vector a _ -> free a
@@ -159,7 +156,6 @@ instance Occurrences Effect where
     a :+ b -> occurrences name env a + occurrences name env b
     NoEffect _ -> 0
     IOEffect _ -> 0
-    Test -> 0
     Var name' _ -> case retrieve env (effect name') of
       Left{} -> if name == name' then 1 else 0
       Right type' -> occurrences name env type'
@@ -168,7 +164,6 @@ instance Occurrences Row where
   occurrences name env type_ = case type_ of
     a :. b -> occurrences name env a + occurrences name env b
     Empty{} -> 0
-    Test -> 0
     Var name' _ -> case retrieve env (row name') of
       Left{} -> if name == name' then 1 else 0
       Right type' -> occurrences name env type'
@@ -187,7 +182,6 @@ instance Occurrences Scalar where
     Handle{} -> 0
     Int{} -> 0
     Named{} -> 0
-    Test{} -> 0
     Var name' _ -> case retrieve env (scalar name') of
       Left{} -> if name == name' then 1 else 0
       Right type' -> occurrences name env type'
@@ -226,7 +220,6 @@ instance Substitute Effect where
     a :+ b -> sub env a +: sub env b
     NoEffect _ -> type_
     IOEffect _ -> type_
-    Test{} -> type_
     Var name _
       | Right type' <- retrieve env (effect name)
       -> sub env type'
@@ -237,7 +230,6 @@ instance Substitute Row where
   sub env type_ = case type_ of
     a :. b -> sub env a :. sub env b
     Empty{} -> type_
-    Test{} -> type_
     Var name _
       | Right type' <- retrieve env (row name)
       -> sub env type'
@@ -260,7 +252,6 @@ instance Substitute Scalar where
     Int{} -> type_
     Handle{} -> type_
     Named{} -> type_
-    Test -> type_
     Var name _
       | Right type' <- retrieve env (scalar name)
       -> sub env type'
