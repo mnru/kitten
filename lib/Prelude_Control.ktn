@@ -5,11 +5,11 @@
 // return 'some' value is evaluated. If all of the matches
 // returned 'none', then 'cond' evaluates the default.
 def cond (
-  a                          // Matched value
-  [(a -> b?) & (b -> c +e)]  // (pattern, function) pairs
-  (-> c +e)                  // default function
+  a                       // Matched value
+  [(a -> b?) & (b -> c)]  // (pattern, function) pairs
+  (-> c)                  // default function
   ->
-  c +e
+  c
 ):
   -> { x ps z }
   \option ps head:
@@ -25,9 +25,9 @@ def cond (
 // 'cond' without a default.
 def cond1 (
   a
-  [(a -> b?) & (b -> c +e)]
+  [(a -> b?) & (b -> c)]
   ->
-  c +e
+  c
 ):
   -> { x ps }
   ps head fromSome -> p
@@ -38,12 +38,12 @@ def cond1 (
     x (ps tail) cond1
 
 // Repeats an action until a condition is false.
-def loopWhile ((-> Bool +e) -> +e):
+def loopWhile ((-> Bool) ->):
   -> f
   \if f@: f loopWhile
 
 // Iterates a function on a value until a predicate holds.
-def until (a (a -> a +e) (a -> Bool +e) -> a +e):
+def until (a (a -> a) (a -> Bool) -> a):
   -> { x f p }
   \if x p@:
     x

@@ -11,7 +11,6 @@ module Kitten.Type
   , TypeScheme
   , (-->)
   , (==>)
-  , (+:)
   , effect
   , emptyScheme
   , mono
@@ -42,7 +41,7 @@ data Type a where
   Char :: !Location -> Type Scalar
   Empty :: !Location -> Type Row
   Float :: !Location -> Type Scalar
-  Function :: !(Type Row) -> !(Type Row) -> !(Type Effect) -> !Location -> Type Scalar
+  Function :: !(Type Row) -> !(Type Row) -> !(Type ERow) -> !Location -> Type Scalar
   Handle :: !Location -> Type Scalar
   Int :: !Location -> Type Scalar
   Named :: !Text -> !Location -> Type Scalar
@@ -50,9 +49,9 @@ data Type a where
   Var :: !Name -> !Location -> Type a
   Vector :: !(Type Scalar) -> !Location -> Type Scalar
 
-  (:+) :: !(Type Effect) -> !(Type Effect) -> Type Effect
-  NoEffect :: !Location -> Type Effect
-  IOEffect :: !Location -> Type Effect
+  (:+) :: !(Type EScalar) -> !(Type ERow) -> Type ERow
+  NoEffect :: !Location -> Type ERow
+  IOEffect :: !Location -> Type EScalar
 
 instance Eq (Type a) where
   (a :& b) == (c :& d) = (a, b) == (c, d)
@@ -117,7 +116,7 @@ instance ToText (TypeName a) where
 data Scheme a = Forall
   (Set (TypeName Row))
   (Set (TypeName Scalar))
-  (Set (TypeName Effect))
+  (Set (TypeName ERow))
   a
   deriving (Eq, Functor)
 
@@ -148,19 +147,10 @@ infix 4 ==>
 (-->) :: Type Row -> Type Row -> Location -> Type Scalar
 (a --> b) loc = Function a b (NoEffect loc) loc
 
-(==>) :: Type Row -> Type Row -> Location -> Type Scalar
-(a ==> b) loc = Function a b (IOEffect loc) loc
+(==>) :: Type Row -> Type Row -> Type ERow -> Location -> Type Scalar
+(a ==> b) e loc = Function a b (IOEffect loc :+ e) loc
 
-(+:) :: Type Effect -> Type Effect -> Type Effect
-a +: b | a == b = a
-IOEffect loc +: _ = IOEffect loc
-NoEffect _ +: a = a
-_ +: IOEffect loc = IOEffect loc
-a +: NoEffect _ = a
-(a :+ b) +: c = a +: (b +: c)
-a +: b = a :+ b
-
-effect :: Name -> TypeName Effect
+effect :: Name -> TypeName ERow
 effect = TypeName
 
 emptyScheme :: a -> Scheme a

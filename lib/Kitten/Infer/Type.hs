@@ -16,6 +16,7 @@ import Kitten.Anno (Anno(Anno))
 import Kitten.Infer.Monad (Inferred, freshVarM)
 import Kitten.Name
 import Kitten.Type
+import Kitten.Util.Monad
 
 import qualified Kitten.Anno as Anno
 
@@ -52,7 +53,7 @@ fromAnno (Anno annoType loc) = do
       Function
         <$> (V.foldl' (:.) (Var r loc) <$> V.mapM fromAnnoType' a)
         <*> (V.foldl' (:.) (Var r loc) <$> V.mapM fromAnnoType' b)
-        <*> fromAnnoEffect e
+        <*> fromAnnoRowEffect e
         <*> pure loc
     Anno.Float -> return (Float loc)
     Anno.Handle -> return (Handle loc)
@@ -74,19 +75,27 @@ fromAnno (Anno annoType loc) = do
     Anno.Vector a -> Vector <$> fromAnnoType' a <*> pure loc
     _ -> error "converting effect annotation to non-effect type"
 
-  fromAnnoEffect :: Anno.Type -> Converted (Type Effect)
-  fromAnnoEffect e = case e of
+  fromAnnoRowEffect :: Anno.Type -> Converted (Type ERow)
+  fromAnnoRowEffect e = case e of
     Anno.NoEffect -> return (NoEffect loc)
-    Anno.IOEffect -> return (IOEffect loc)
+    Anno.SomeEffect -> freshEffectVar Nothing
     Anno.Var name -> do
       mExisting <- gets
         $ \env -> M.lookup name (envEffects env)
       case mExisting of
         Just existing -> return (Var existing loc)
-        Nothing -> do
-          Var var _ <- lift freshVarM
-          modify $ \env -> env
-            { envEffects = M.insert name var (envEffects env) }
-          return (Var var loc)
-    Anno.Join a b -> (+:) <$> fromAnnoEffect a <*> fromAnnoEffect b
-    _ -> error "converting non-effect annotation to effect type"
+        Nothing -> freshEffectVar (Just name)
+    Anno.Join a b -> (:+) <$> fromAnnoScalarEffect a <*> fromAnnoRowEffect b
+    _ -> (:+) <$> fromAnnoScalarEffect e <*> freshEffectVar Nothing
+
+  fromAnnoScalarEffect :: Anno.Type -> Converted (Type EScalar)
+  fromAnnoScalarEffect e = case e of
+    Anno.IOEffect -> return (IOEffect loc)
+    _ -> error "converting scalar effect annotation to row effect type"
+
+  freshEffectVar :: Maybe Text -> Converted (Type a)
+  freshEffectVar mName = do
+    Var var _ <- lift freshVarM
+    whenJust mName $ \name -> modify $ \env -> env
+      { envEffects = M.insert name var (envEffects env) }
+    return (Var var loc)

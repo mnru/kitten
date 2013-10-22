@@ -42,19 +42,15 @@ class Unification a where
     -> Env
     -> Either [ErrorGroup] Env
 
-instance Unification Effect where
+instance Unification EScalar where
+  unification IOEffect{} IOEffect{} env = Right env
+  unification type1 type2 env = Left $ unificationError "effect"
+    (envLocation env) type1 type2
+
+instance Unification ERow where
   unification type1 type2 env = case (type1, type2) of
     _ | type1 == type2 -> Right env
 
-    (NoEffect loc, a :+ b)
-      -> unify a (NoEffect loc) env
-      >>= unify b (NoEffect loc)
-
-    (a :+ b, NoEffect loc)
-      -> unify a (NoEffect loc) env
-      >>= unify b (NoEffect loc)
-
-    (a :+ b, c :+ d) | a +: b == c +: d -> Right env
     (a :+ b, c :+ d) -> unify a c env >>= unify b d
 
     (Var var _, type_) -> unifyVar (effect var) type_ env

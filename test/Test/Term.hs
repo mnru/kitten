@@ -202,8 +202,8 @@ spec = do
               [Anno.Function
                 (V.fromList [Anno.Int])
                 (V.fromList [Anno.Int])
-                Anno.NoEffect])
-            Anno.NoEffect)
+                Anno.SomeEffect])
+            Anno.SomeEffect)
           $ compose
             [ lambda "x"
               [ push $ function

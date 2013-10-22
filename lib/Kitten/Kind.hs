@@ -1,11 +1,13 @@
 {-# LANGUAGE EmptyDataDecls #-}
 
 module Kitten.Kind
-  ( Effect
+  ( ERow
+  , EScalar
   , Row
   , Scalar
   ) where
 
-data Effect
+data ERow
+data EScalar
 data Row
 data Scalar

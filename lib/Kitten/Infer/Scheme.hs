@@ -76,7 +76,7 @@ generalize type_ = do
 
     rows :: [TypeName Row]
     scalars :: [TypeName Scalar]
-    effects :: [TypeName Effect]
+    effects :: [TypeName ERow]
     (rows, scalars, effects) = freeVars substituted
 
   return $ Forall
@@ -88,7 +88,7 @@ generalize type_ = do
 freeVars
   :: (Free a)
   => Type a
-  -> ([TypeName Row], [TypeName Scalar], [TypeName Effect])
+  -> ([TypeName Row], [TypeName Scalar], [TypeName ERow])
 freeVars type_
   = let (rows, scalars, effects) = free type_
   in (nub rows, nub scalars, nub effects)
@@ -96,13 +96,12 @@ freeVars type_
 class Free a where
   free
     :: Type a
-    -> ([TypeName Row], [TypeName Scalar], [TypeName Effect])
+    -> ([TypeName Row], [TypeName Scalar], [TypeName ERow])
 
-instance Free Effect where
+instance Free ERow where
   free type_ = case type_ of
-    a :+ b -> free a <> free b
+    _ :+ a -> free a
     NoEffect _ -> mempty
-    IOEffect _ -> mempty
     Var name _ -> ([], [], [effect name])
 
 instance Free Row where
@@ -151,11 +150,10 @@ occurs = (((> 0) .) .) . occurrences
 class Occurrences a where
   occurrences :: Name -> Env -> Type a -> Int
 
-instance Occurrences Effect where
+instance Occurrences ERow where
   occurrences name env type_ = case type_ of
-    a :+ b -> occurrences name env a + occurrences name env b
+    _ :+ a -> occurrences name env a
     NoEffect _ -> 0
-    IOEffect _ -> 0
     Var name' _ -> case retrieve env (effect name') of
       Left{} -> if name == name' then 1 else 0
       Right type' -> occurrences name env type'
@@ -191,7 +189,10 @@ instance Occurrences Scalar where
 class Simplify a where
   simplify :: Env -> Type a -> Type a
 
-instance Simplify Effect where
+instance Simplify EScalar where
+  simplify _env type_ = type_
+
+instance Simplify ERow where
   simplify env type_ = case type_ of
     Var name _
       | Right type' <- retrieve env (effect name)
@@ -215,11 +216,15 @@ instance Simplify Scalar where
 class Substitute a where
   sub :: Env -> Type a -> Type a
 
-instance Substitute Effect where
-  sub env type_ = case type_ of
-    a :+ b -> sub env a +: sub env b
-    NoEffect _ -> type_
+instance Substitute EScalar where
+  sub _env type_ = case type_ of
     IOEffect _ -> type_
+    Var{} -> type_
+
+instance Substitute ERow where
+  sub env type_ = case type_ of
+    a :+ b -> sub env a :+ sub env b
+    NoEffect _ -> type_
     Var name _
       | Right type' <- retrieve env (effect name)
       -> sub env type'
