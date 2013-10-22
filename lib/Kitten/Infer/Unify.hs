@@ -48,16 +48,18 @@ instance Unification EScalar where
     (envLocation env) type1 type2
 
 instance Unification ERow where
-  unification type1 type2 env = case (type1, type2) of
-    _ | type1 == type2 -> Right env
+  unification type1 type2 env
+    | type1 == type2 = Right env
+    | otherwise = unifyEach (rev type1) (rev type2) env
+    where
+    unifyEach (Var var _ :++ x) (ys :++ y) e
+      = unifyVar var ys
 
-    (a :+ b, c :+ d) -> unify a c env >>= unify b d
+    rev :: Type ERow -> EReversed
+    rev (a :+ b@Var{}) = b : rev a
+    rev x = Base x
 
-    (Var var _, type_) -> unifyVar (effect var) type_ env
-    (type_, Var var _) -> unifyVar (effect var) type_ env
-
-    _ -> Left $ unificationError "effect"
-      (envLocation env) type1 type2
+data EReversed = Type ERow :++ Type EReversed | Base (Type EScalar)
 
 unificationError
   :: Text
