@@ -9,7 +9,6 @@ module Kitten.Type
   , Type(..)
   , TypeName(..)
   , TypeScheme
-  , (-->)
   , (==>)
   , effect
   , emptyScheme
@@ -50,7 +49,6 @@ data Type a where
   Vector :: !(Type Scalar) -> !Location -> Type Scalar
 
   (:+) :: !(Type EScalar) -> !(Type ERow) -> Type ERow
-  NoEffect :: !Location -> Type ERow
   IOEffect :: !Location -> Type EScalar
 
 instance Eq (Type a) where
@@ -72,7 +70,6 @@ instance Eq (Type a) where
   Vector a _ == Vector b _ = a == b
 
   (a :+ b) == (c :+ d) = (a, b) == (c, d)
-  NoEffect{} == NoEffect{} = True
   IOEffect{} == IOEffect{} = True
 
   _ == _ = False
@@ -101,7 +98,6 @@ instance ToText (Type a) where
     Vector t _ -> T.concat ["[", toText t, "]"]
 
     t1 :+ t2 -> T.concat ["(", toText t1, " + ", toText t2, ")"]
-    NoEffect{} -> "()"
     IOEffect{} -> "IO"
 
 newtype TypeName a = TypeName { typeName :: Name }
@@ -141,11 +137,7 @@ type TypeScheme = Scheme (Type Scalar)
 infix 6 :&
 infix 6 :|
 infixl 5 :.
-infix 4 -->
 infix 4 ==>
-
-(-->) :: Type Row -> Type Row -> Location -> Type Scalar
-(a --> b) loc = Function a b (NoEffect loc) loc
 
 (==>) :: Type Row -> Type Row -> Type ERow -> Location -> Type Scalar
 (a ==> b) e loc = Function a b (IOEffect loc :+ e) loc

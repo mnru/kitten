@@ -30,5 +30,6 @@ data Type
   | Vector !Type
   | NoEffect
   | IOEffect
+  | SomeEffect
   | Join !Type !Type
   deriving (Eq, Show)

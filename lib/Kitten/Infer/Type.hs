@@ -77,7 +77,7 @@ fromAnno (Anno annoType loc) = do
 
   fromAnnoRowEffect :: Anno.Type -> Converted (Type ERow)
   fromAnnoRowEffect e = case e of
-    Anno.NoEffect -> return (NoEffect loc)
+    Anno.SomeEffect -> freshEffectVar Nothing
     Anno.Var name -> do
       mExisting <- gets
         $ \env -> M.lookup name (envEffects env)

@@ -31,7 +31,6 @@ locations type_ = case type_ of
   Vector a loc -> yield loc ++ locations a
 
   a :+ b -> locations a ++ locations b
-  NoEffect loc -> yield loc
   IOEffect loc -> yield loc
 
   where

@@ -23,7 +23,7 @@ signature = (<?> "type signature") . locate
   $ Anno <$> choice
   [ try . grouped $ Anno.Function V.empty
     <$> (V.singleton <$> baseType)
-    <*> pure Anno.NoEffect
+    <*> pure Anno.SomeEffect
   , grouped functionType
   ]
 
@@ -43,7 +43,7 @@ functionType = (<?> "function type") $ do
 effectTail :: Parser Type
 effectTail = (<?> "effect type") $ choice
   [ match (Token.Operator "+") *> effectType
-  , pure Anno.NoEffect
+  , pure Anno.SomeEffect
   ]
 
 effectType :: Parser Type
@@ -52,7 +52,6 @@ effectType = (<?> "effect type") $ choice
     <$> (Anno.IOEffect <$ match (Token.BigWord "IO"))
     <*> effectTail
   , Anno.Var <$> littleWord
-  , try $ Anno.NoEffect <$ unit
   , grouped effectType
   ]
 

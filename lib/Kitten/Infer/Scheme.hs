@@ -101,7 +101,6 @@ class Free a where
 instance Free ERow where
   free type_ = case type_ of
     _ :+ a -> free a
-    NoEffect _ -> mempty
     Var name _ -> ([], [], [effect name])
 
 instance Free Row where
@@ -153,7 +152,6 @@ class Occurrences a where
 instance Occurrences ERow where
   occurrences name env type_ = case type_ of
     _ :+ a -> occurrences name env a
-    NoEffect _ -> 0
     Var name' _ -> case retrieve env (effect name') of
       Left{} -> if name == name' then 1 else 0
       Right type' -> occurrences name env type'
@@ -224,7 +222,6 @@ instance Substitute EScalar where
 instance Substitute ERow where
   sub env type_ = case type_ of
     a :+ b -> sub env a :+ sub env b
-    NoEffect _ -> type_
     Var name _
       | Right type' <- retrieve env (effect name)
       -> sub env type'

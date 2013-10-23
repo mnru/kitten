@@ -42,24 +42,40 @@ class Unification a where
     -> Env
     -> Either [ErrorGroup] Env
 
+{-
 instance Unification EScalar where
-  unification IOEffect{} IOEffect{} env = Right env
-  unification type1 type2 env = Left $ unificationError "effect"
-    (envLocation env) type1 type2
-
-instance Unification ERow where
   unification type1 type2 env
     | type1 == type2 = Right env
-    | otherwise = unifyEach (rev type1) (rev type2) env
-    where
-    unifyEach (Var var _ :++ x) (ys :++ y) e
-      = unifyVar var ys
+    | otherwise = Left $ unificationError "effect scalar"
+      (envLocation env) type1 type2
+-}
 
-    rev :: Type ERow -> EReversed
-    rev (a :+ b@Var{}) = b : rev a
-    rev x = Base x
+instance Unification ERow where
+  unification type1 type2 env = case (type1, type2) of
+    _ | type1 == type2 -> Right env
 
-data EReversed = Type ERow :++ Type EReversed | Base (Type EScalar)
+    -- row-swap
+    (a :+ b, c :+ (d :+ e))
+      | a == d
+      -> unify b (c :+ e) env
+
+    -- row-head
+    (a :+ b, c :+ d)
+      | a == c -> unify b d env
+
+    -- row-var
+    (Var var _, _) -> unifyVar (effect var) type2 env
+    (_, Var var _) -> unifyVar (effect var) type1 env
+
+    -- uni-row
+    (s, t' :+ s') -> let
+      loc = envLocation env
+      (t, env') = freshVar loc env
+      in if t == t' then let
+        (r, env'') = freshVar loc env'
+        in unify (t :+ r) s =<< unify r s' env''
+        else Left $ unificationError "effect row"
+          (envLocation env) type1 type2
 
 unificationError
   :: Text
