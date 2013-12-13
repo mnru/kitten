@@ -48,10 +48,6 @@ data Instruction
   | Comment !Text
   | Enter
   | EntryLabel
-  | Jump !Offset
-  | JumpIfFalse !Offset
-  | JumpIfNone !Offset
-  | JumpIfRight !Offset
   | Leave
   | Label !Label
   | Local !Index
@@ -77,10 +73,6 @@ instance ToText Instruction where
     Comment comment -> ["\n;", comment]
     Enter -> ["enter"]
     EntryLabel -> ["\nentry"]
-    Jump offset -> ["jmp", showText offset]
-    JumpIfFalse offset -> ["jf", showText offset]
-    JumpIfNone offset -> ["jn", showText offset]
-    JumpIfRight offset -> ["jr", showText offset]
     Leave -> ["leave"]
     Label label -> ["\nlabel", showText label]
     Local index -> ["local", showText index]
