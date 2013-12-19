@@ -8,7 +8,7 @@ def if_else (.r Bool (.r -> .s) (.r -> .s) -> .s): __if_else
 def showInt (Int -> [Char]): __show_int
 def -- (Int -> Int): 1 __sub_int
 
-99 bottlesOfBeer
+1 bottlesOfBeer
 
 def bottlesOfBeer (Int ->):
   -> x
@@ -35,10 +35,13 @@ def take (->):
 
 def bottles (Int ->):
   -> x
-  \if (x 0 =):
+  \if (x 0 =) {
     "no more bottles"
-  else if (x 1 =):
-    "one bottle"
-  else:
-    x showInt " bottles" cat
+  } else {
+    \if (x 1 =) {
+      "one bottle"
+    } else {
+      x showInt " bottles" cat
+    }
+  }
   print

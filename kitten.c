@@ -89,6 +89,7 @@ KObject k_activation(void* const function, const size_t size, ...) {
   va_start(args, size);
   for (size_t i = 0; i < size; ++i) {
     const KClosedName namespace = va_arg(args, KClosedName);
+    assert(namespace == K_CLOSED || namespace == K_RECLOSED);
     const int index = va_arg(args, int);
     switch (namespace) {
     case K_CLOSED:
@@ -247,7 +248,7 @@ static void dump_locals() {
 void k_push_locals(const KObject object) {
   *--k_locals = object;
 #ifndef NDEBUG
-  fprintf(stderr, "push");
+  fprintf(stderr, "push locals\t");
   dump_locals();
 #endif
 }
@@ -255,7 +256,7 @@ void k_push_locals(const KObject object) {
 void k_push_data(const KObject object) {
   *--k_data = object;
 #ifndef NDEBUG
-  fprintf(stderr, "push");
+  fprintf(stderr, "push data\t");
   dump_data();
 #endif
 }
@@ -268,7 +269,7 @@ KObject k_pop_data() {
 #endif
   ++k_data;
 #ifndef NDEBUG
-  fprintf(stderr, "pop ");
+  fprintf(stderr, "pop data\t");
   dump_data();
 #endif
   return x;
@@ -282,7 +283,7 @@ KObject k_pop_locals() {
 #endif
   ++k_locals;
 #ifndef NDEBUG
-  fprintf(stderr, "pop ");
+  fprintf(stderr, "pop locals\t");
   dump_locals();
 #endif
   return x;
