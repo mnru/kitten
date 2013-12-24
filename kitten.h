@@ -36,7 +36,8 @@ typedef enum KType {
   K_PAIR,
   K_RIGHT,
   K_SOME,
-  K_VECTOR
+  K_VECTOR,
+  K_MAX_TYPE
 } KType;
 
 typedef struct KObject {

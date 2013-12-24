@@ -246,6 +246,7 @@ static void dump_locals() {
 #endif
 
 void k_push_locals(const KObject object) {
+  assert(object.type > K_UNBOXED && object.type < K_MAX_TYPE);
   *--k_locals = object;
 #ifndef NDEBUG
   fprintf(stderr, "push locals\t");
@@ -254,6 +255,7 @@ void k_push_locals(const KObject object) {
 }
 
 void k_push_data(const KObject object) {
+  assert(object.type > K_UNBOXED && object.type < K_MAX_TYPE);
   *--k_data = object;
 #ifndef NDEBUG
   fprintf(stderr, "push data\t");
