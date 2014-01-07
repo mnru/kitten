@@ -105,8 +105,7 @@ unificationError prefix location type1 type2 = runTidy $ do
   return [ErrorGroup (primaryError : secondaryErrors)]
   where
   kind = reifyKind (KindProxy :: KindProxy a)
-  errorDetail (loc, type_) = CompileError loc Note
-    $ toText type_ <> " is from here"
+  errorDetail (loc, type_) = CompileError loc Note (type_ <> " is from here")
 
 -- | Unifies two types, returning the second type.
 unifyM

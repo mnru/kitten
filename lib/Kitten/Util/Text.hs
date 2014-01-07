@@ -1,9 +1,5 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ExistentialQuantification #-}
-
 module Kitten.Util.Text
-  ( Textable(..)
-  , ToText(..)
+  ( ToText(..)
   , readFileUtf8
   , showText
   , module Data.Text
@@ -14,11 +10,6 @@ import Data.Text
 import Data.Text.Encoding
 
 import qualified Data.ByteString as B
-
-data Textable = forall a. (ToText a) => Textable a
-
-instance ToText Textable where
-  toText (Textable x) = toText x
 
 class ToText a where
   toText :: a -> Text
