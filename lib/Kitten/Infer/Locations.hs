@@ -34,7 +34,7 @@ diagnosticLocations type_ = case type_ of
 
   where
   yield :: Origin -> [(Location, Text)]
-  yield (Origin _ loc) = [(loc, toText type_)]
+  yield (Origin _ loc) = [(loc, toVerbose type_)]
 
   locations
     :: (ToText (Type a)) => Type a -> [(Location, Text)]

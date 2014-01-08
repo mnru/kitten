@@ -51,7 +51,7 @@ import Kitten.NameMap (NameMap)
 import Kitten.Type
 import Kitten.Util.FailWriter
 import Kitten.Util.Maybe
-import Kitten.Util.Text (ToText(..))
+import Kitten.Util.Text (toVerbose)
 
 import qualified Kitten.NameMap as N
 
@@ -112,7 +112,7 @@ nonexistent :: Text -> Origin -> Name -> ErrorGroup
 nonexistent kind (Origin _ loc) name
   = oneError $ CompileError loc Error $ T.concat
   [ "nonexistent ", kind, " variable '"
-  , toText name
+  , toVerbose name
   , "'"
   ]
 

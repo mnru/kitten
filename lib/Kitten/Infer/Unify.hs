@@ -29,7 +29,7 @@ import Kitten.Type
 import Kitten.Type.Tidy
 import Kitten.Util.FailWriter
 import Kitten.Util.Maybe
-import Kitten.Util.Text (ToText(..))
+import Kitten.Util.Text (ToText(..), toVerbose)
 
 -- | Simplifies and unifies two types.
 unify
@@ -94,11 +94,11 @@ unificationError prefix location type1 type2 = runTidy $ do
   let
     primaryError = CompileError location Error $ T.unwords
       $ "cannot solve"
-      : prefix `consMaybe` toText kind
+      : prefix `consMaybe` toVerbose kind
       : "type constraint"
-      : toText type1'
+      : toVerbose type1'
       : "="
-      : toText type2'
+      : toVerbose type2'
       : []
     secondaryErrors = map errorDetail
       $ diagnosticLocations type1' ++ diagnosticLocations type2'

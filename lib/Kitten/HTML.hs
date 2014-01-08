@@ -28,7 +28,7 @@ import Data.Monoid
 import Data.Text (Text)
 
 import qualified Data.Map as Map
-import qualified Data.Text as Text
+import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Text.Parsec.Pos as ParsecPos
 
@@ -37,7 +37,7 @@ import Kitten.Fragment
 import Kitten.Location
 import Kitten.Type (Kind(..), Type, unScheme)
 import Kitten.Typed
-import Kitten.Util.Text (toText)
+import qualified Kitten.Util.Text as T
 
 type LocMap = UnionMap FilePath (UnionMap Pos [Node])
 
@@ -78,7 +78,7 @@ fromFragmentsM lookUpSource fragments = do
   return $ mconcat
     [ showHeader
     , showTableOfContents (Map.keys locMap)
-    , Text.unlines sources
+    , T.unlines sources
     ]
   where
   showSource'
@@ -155,11 +155,11 @@ showHeader
 showTableOfContents :: [FilePath] -> Text
 showTableOfContents paths = mconcat
   [ openTag "h1" []
-  , htmlspecialchars "Source Files"
+  , T.escapeHtml "Source Files"
   , closeTag "h1"
 
   , openTag "ul" []
-  , Text.unlines (map listItem paths)
+  , T.unlines (map listItem paths)
   , closeTag "ul"
   ]
   where
@@ -167,33 +167,33 @@ showTableOfContents paths = mconcat
   listItem path = mconcat
     [ openTag "li" []
     , openTag "a" [("href", "#file-" <> pathText)]
-    , htmlspecialchars pathText
+    , T.escapeHtml pathText
     , closeTag "a"
     , closeTag "li"
     ]
     where
     pathText :: Text
-    pathText = Text.pack path
+    pathText = T.pack path
 
 -- | Converts to HTML one source file annotated with node
 -- information.
 showSource :: FilePath -> Text -> Map Pos [Node] -> Text
 showSource path source nodeMap = mconcat
   [ openTag "h2" [("id", "file-" <> pathText)]
-  , htmlspecialchars pathText
+  , T.escapeHtml pathText
   , closeTag "h2"
 
   , openTag "pre" [("data-filepath", pathText)]
   , openTag "code" []
 
-  , runScanner $ mapM_ scanChar (Text.unpack source)
+  , runScanner $ mapM_ scanChar (T.unpack source)
 
   , closeTag "code"
   , closeTag "pre"
   ]
   where
   pathText :: Text
-  pathText = Text.pack path
+  pathText = T.pack path
   runScanner :: StateT ScanEnv (Writer Text) a -> Text
   runScanner m = execWriter $ evalStateT m ScanEnv
     { envNodeMap = nodeMap
@@ -205,7 +205,7 @@ openNode :: Node -> Writer Text ()
 openNode node = tell . openTag (nodeTypeTag (nodeType node))
   $ case node of
     Definition _name -> []
-    ScalarType type_ -> [("title", toText type_)]
+    ScalarType type_ -> [("title", T.toText type_)]
 
 closeNode :: NodeType -> Writer Text ()
 closeNode type_ = tell $ closeTag (nodeTypeTag type_)
@@ -222,31 +222,18 @@ scanChar c = do
       lift $ mapM_ openNode nodes
       modify $ \env -> env
         { envOpened = map nodeType nodes }
-  lift . tell $ htmlspecialchars (Text.singleton c)
-
--- * HTML utilities.
-
--- | Escapes a string for inserting in an HTML body or
--- attribute.
-htmlspecialchars :: Text -> Text
-htmlspecialchars = Text.concatMap escape
-  where
-  escape '"' = "&quot;"
-  escape '&' = "&amp;"
-  escape '<' = "&lt;"
-  escape '>' = "&gt;"
-  escape c = Text.singleton c
+  lift . tell $ T.escapeHtml (T.singleton c)
 
 -- | Creates an open HTML tag.
 openTag :: Text -> [(Text, Text)] -> Text
 openTag name attributes
   = "<" <> name
-  <> Text.concat (map ((" " <>) . mkAttribute) attributes)
+  <> T.concat (map ((" " <>) . mkAttribute) attributes)
   <> ">"
   where
   mkAttribute :: (Text, Text) -> Text
   mkAttribute (key, value) = key
-    <> "='" <> htmlspecialchars value <> "'"
+    <> "='" <> T.escapeHtml value <> "'"
 
 -- Creates a closing HTML tag.
 closeTag :: Text -> Text

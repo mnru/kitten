@@ -39,7 +39,7 @@ import Kitten.Typed (Typed)
 import Kitten.TypeDef
 import Kitten.Util.FailWriter
 import Kitten.Util.Monad
-import Kitten.Util.Text (toText)
+import Kitten.Util.Text (toVerbose)
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.NameMap as N
@@ -86,9 +86,9 @@ inferFragment prelude fragment stackTypes = mdo
           [ "multiple definitions of type"
           , name
           , "as both"
-          , toText existing
+          , toVerbose existing
           , "and"
-          , toText scheme
+          , toVerbose scheme
           ]
 
   -- Populate environment with Prelude definition types.
@@ -128,8 +128,8 @@ inferFragment prelude fragment stackTypes = mdo
             , defName def
             , "is not an instance of its declared type"
             ]
-          , item Note $ T.unwords ["inferred", toText inferredScheme]
-          , item Note $ T.unwords ["declared", toText declaredScheme]
+          , item Note $ T.unwords ["inferred", toVerbose inferredScheme]
+          , item Note $ T.unwords ["declared", toVerbose declaredScheme]
           ]
 
       return def { defTerm = typedTerm <$ inferredScheme }

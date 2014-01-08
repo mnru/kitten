@@ -85,39 +85,46 @@ instance Show (Type Row) where
 
 -- TODO showsPrec
 instance ToText (Type Scalar) where
-  toText = \case
-    t1 :& t2 -> T.concat ["(", toText t1, " & ", toText t2, ")"]
-    (:?) t -> toText t <> "?"
-    t1 :| t2 -> T.concat ["(", toText t1, " | ", toText t2, ")"]
-    Bool o -> "Bool" <> suffix o
-    Char o -> "Char" <> suffix o
+  toTextWith f = \case
+    t1 :& t2 -> T.concat ["(", recur t1, " & ", recur t2, ")"]
+    (:?) t -> recur t <> "?"
+    t1 :| t2 -> T.concat ["(", recur t1, " | ", recur t2, ")"]
+    Bool o -> "Bool" <> suffix f o
+    Char o -> "Char" <> suffix f o
     Const (TypeName (Name index)) o
-      -> "t" <> showText index <> suffix o  -- TODO Show differently?
-    Float o -> "Float" <> suffix o
+      -> "t" <> showText index <> suffix f o  -- TODO Show differently?
+    Float o -> "Float" <> suffix f o
     Function r1 r2 o -> T.concat
-      [ "(", T.unwords [toText r1, "->", toText r2], ")"
-      , suffix o
+      [ "(", T.unwords [recur r1, "->", recur r2], ")"
+      , suffix f o
       ]
-    Handle o -> "Handle" <> suffix o
-    Int o -> "Int" <> suffix o
-    Named name o -> name <> suffix o
-    Quantified scheme _ -> toText scheme
-    Unit o -> "()" <> suffix o
+    Handle o -> "Handle" <> suffix f o
+    Int o -> "Int" <> suffix f o
+    Named name o -> name <> suffix f o
+    Quantified scheme _ -> recur scheme
+    Unit o -> "()" <> suffix f o
     Var (TypeName (Name index)) o
-      -> "t" <> showText index <> suffix o
-    Vector t o -> T.concat ["[", toText t, "]", suffix o]
+      -> "t" <> showText index <> suffix f o
+    Vector t o -> T.concat ["[", recur t, "]", suffix f o]
+    where
+    recur :: (ToText a) => a -> Text
+    recur = toTextWith f
 
 instance ToText (Type Row) where
-  toText = \case
-    t1 :. t2 -> T.unwords [toText t1, toText t2]
+  toTextWith f = \case
+    t1 :. t2 -> T.unwords [recur t1, recur t2]
     Const (TypeName (Name index)) o
-      -> ".r" <> showText index <> suffix o
-    Empty o -> "<empty>" <> suffix o
+      -> ".r" <> showText index <> suffix f o
+    Empty o -> "<empty>" <> suffix f o
     Var (TypeName (Name index)) o
-      -> ".r" <> showText index <> suffix o
+      -> ".r" <> showText index <> suffix f o
+    where
+    recur :: (ToText a) => a -> Text
+    recur = toTextWith f
 
-suffix :: Origin -> Text
-suffix (Origin hint _) = case hint of
+suffix :: T.Format -> Origin -> Text
+suffix T.Plain _ = ""
+suffix T.Verbose (Origin hint _) = case hint of
   Local name -> " (type of " <> name <> ")"
   AnnoType annotated
     -> " (type of " <> toText annotated <> ")"
@@ -128,6 +135,7 @@ suffix (Origin hint _) = case hint of
   AnnoFunctionOutput annotated
     -> " (output of " <> toText annotated <> ")"
   NoHint -> ""
+suffix T.Html x = T.escapeHtml (suffix T.Plain x)
 
 newtype TypeName (a :: Kind) = TypeName { unTypeName :: Name }
   deriving (Eq, Ord)
