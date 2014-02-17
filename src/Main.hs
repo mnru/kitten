@@ -20,7 +20,6 @@ import Kitten.Interpret
 import Kitten.Name (NameGen, mkNameGen)
 import Kitten.Typed (Typed)
 import Kitten.Yarn (yarn)
-import Repl
 
 import qualified Kitten.Compile as Compile
 import qualified Kitten.HTML as HTML
@@ -102,7 +101,7 @@ main = do
       exitFailure
 
   case argsEntryPoints arguments of
-    [] -> runRepl prelude nameGen'
+    [] -> return ()  -- runRepl prelude nameGen'
     entryPoints -> interpretAll entryPoints
       (argsCompileMode arguments) prelude
       (defaultConfig prelude)
@@ -133,7 +132,7 @@ interpretAll entryPoints compileMode prelude config nameGen
       Right (_nameGen', result, _type) -> case compileMode of
         CheckMode -> return ()
         CompileMode -> V.mapM_ print $ yarn (prelude <> result)
-        InterpretMode -> void $ interpret [] prelude result
+        InterpretMode -> void $ interpret [] $ yarn (prelude <> result)
         HTMLMode -> do
           html <- HTML.fromFragmentsM T.readFileUtf8 [prelude, result]
           T.putStrLn html
