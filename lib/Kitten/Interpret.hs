@@ -108,10 +108,6 @@ interpretInstruction = do
       pushLocal =<< popData
       return succ
     Y.EntryLabel -> return succ
-    Y.Jump offset -> return (+ offset)
-    Y.JumpIfFalse _offset -> error "TODO jf"
-    Y.JumpIfNone _offset -> error "TODO jn"
-    Y.JumpIfRight _offset -> error "TODO jr"
     Y.Leave -> popLocal >> return succ
     Y.Label _label -> return succ
     Y.Local index -> (pushData =<< getLocal index) >> return succ
