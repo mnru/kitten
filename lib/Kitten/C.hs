@@ -21,7 +21,7 @@ import Kitten.C.Quote
 import Kitten.Name
 import Kitten.NameMap (NameMap)
 import Kitten.Util.List
-import Kitten.Util.Text (showText, toText)
+import Kitten.Util.Text (showText)
 import Kitten.Yarn
 
 import qualified Kitten.Builtin as Builtin
@@ -139,6 +139,8 @@ toCBuiltin builtin = case builtin of
     next <- newLabel 0
     return [qc|K_APPLY(#{ local next });|]
   Builtin.CharToInt -> return "/* __char_to_int */"
+  Builtin.Choice -> return [qc|K_CHOICE();|]
+  Builtin.ChoiceElse -> return [qc|K_CHOICE_ELSE();|]
   Builtin.Close -> return [qc|K_CLOSE();|]
   Builtin.DivFloat -> binary "float" "/"
   Builtin.DivInt -> binary "int" "/"
@@ -173,6 +175,8 @@ toCBuiltin builtin = case builtin of
   Builtin.None -> return [qc|k_push_data(k_none());|]
   Builtin.NotBool -> unary "int" "!"
   Builtin.NotInt -> unary "int" "~"
+  Builtin.Option -> return [qc|K_OPTION();|]
+  Builtin.OptionElse -> return [qc|K_OPTION_ELSE();|]
   Builtin.OrBool -> relational "int" "||"
   Builtin.OrInt -> binary "int" "|"
   Builtin.Pair -> return [qc|K_PAIR();|]
@@ -190,21 +194,14 @@ toCBuiltin builtin = case builtin of
   Builtin.XorBool -> relational "int" "!="
   Builtin.XorInt -> relational "int" "^"
 
-  _ -> return [qc|
-    assert(!"TODO compile builtin #{ toText builtin }");
-  |]
-
-  {-
-  Builtin.GetLine
-  Builtin.Impure
-  Builtin.Init
-  Builtin.ModFloat
-  Builtin.OpenIn
-  Builtin.OpenOut
-  Builtin.Set
-  Builtin.ShowFloat
-  Builtin.Tail
-  -}
+  Builtin.GetLine -> return [qc|assert(!"TODO stdio __get_line");|]
+  Builtin.Init -> return [qc|K_INIT();|]
+  Builtin.ModFloat -> return [qc|K_MOD_FLOAT();|]
+  Builtin.OpenIn -> return [qc|assert(!"TODO stdio __open_in");|]
+  Builtin.OpenOut -> return [qc|assert(!"TODO stdio __open_out");|]
+  Builtin.Set -> return [qc|K_SET();|]
+  Builtin.ShowFloat -> return [qc|assert(!"TODO builtin __show_float");|]
+  Builtin.Tail -> return [qc|K_TAIL();|]
 
   where
 
