@@ -171,10 +171,8 @@ KObject k_pop_locals(void);
     assert(object.type == K_ACTIVATION); \
     const KActivation* const activation = (KActivation*)object.data; \
     const size_t size = activation->end - activation->begin; \
-    fprintf(stderr, "applying with closure of size %d\n", (int)size); \
     K_PUSH_CLOSURE(calloc(size, sizeof(KObject))); \
     for (size_t i = 0; i < size; ++i) { \
-      fprintf(stderr, "closure[%zu] = %"PRId64"/%"PRId64"\n", i, activation->begin[i].data, activation->begin[i].type); \
       k_closure[0][i] = activation->begin[i]; \
     } \
     K_PUSH_RETURN(((KR){ .address = &&RETURN, .closure = 1 })); \
