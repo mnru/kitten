@@ -299,9 +299,6 @@ infer finalEnv resolved = case resolved of
         :. Type.Function r s o)
       s o
 
-    Builtin.Impure -> forAll $ \r
-      -> (r --> r) o
-
     Builtin.Init -> forAll $ \r a
       -> (r :. Type.Vector a o --> r :. Type.Vector a o) o
 

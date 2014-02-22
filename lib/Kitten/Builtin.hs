@@ -46,7 +46,6 @@ data Builtin
   | GtInt
   | If
   | IfElse
-  | Impure
   | Init
   | IntToChar
   | LeFloat
@@ -141,7 +140,6 @@ fromTextTable = V.fromList
   , (,) "__gt_int"          GtInt
   , (,) "__if"              If
   , (,) "__if_else"         IfElse
-  , (,) "__impure"          Impure
   , (,) "__init"            Init
   , (,) "__int_to_char"     IntToChar
   , (,) "__le_float"        LeFloat

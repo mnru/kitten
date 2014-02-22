@@ -265,8 +265,6 @@ interpretBuiltin builtin = case builtin of
     Bool test <- popData
     interpretFunction $ if test then true else false
 
-  Builtin.Impure -> return succ
-
   Builtin.Init -> do
     Vector a <- popData
     pushData . Vector $ if V.null a
