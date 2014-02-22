@@ -1,14 +1,4 @@
-def newline (->): "\n" __stdout __print
-def print ([Char] ->): __stdout __print
-def cat ([a] [a] -> [a]): __add_vector
-def > (Int Int -> Bool): __gt_int
-def = (Int Int -> Bool): __eq_int
-def if (.r Bool (.r -> .r) -> .r): __if
-def if_else (.r Bool (.r -> .s) (.r -> .s) -> .s): __if_else
-def showInt (Int -> [Char]): __show_int
-def -- (Int -> Int): 1 __sub_int
-
-1 bottlesOfBeer
+99 bottlesOfBeer
 
 def bottlesOfBeer (Int ->):
   -> x
