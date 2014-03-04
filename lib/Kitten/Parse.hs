@@ -15,9 +15,6 @@ import Text.Parsec.Pos
 import qualified Data.Vector as V
 import qualified Text.Parsec as Parsec
 
-import Kitten.Def
-import Kitten.Fragment
-import Kitten.Import
 import Kitten.Location
 import Kitten.Parsec
 import Kitten.Parse.Element
@@ -25,8 +22,7 @@ import Kitten.Parse.Layout
 import Kitten.Parse.Monad
 import Kitten.Parse.Primitive
 import Kitten.Parse.Type
-import Kitten.Term
-import Kitten.TypeDef
+import Kitten.Tree
 import Kitten.Token (Located(..), Token)
 import Kitten.Util.Parsec
 import Kitten.Util.Text (toText)

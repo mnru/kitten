@@ -32,11 +32,9 @@ import qualified Data.Text as Text
 import qualified Data.Vector as V
 import qualified Text.Parsec.Pos as ParsecPos
 
-import Kitten.Def
-import Kitten.Fragment
 import Kitten.Location
+import Kitten.Tree
 import Kitten.Type (Kind(..), Type, unScheme)
-import Kitten.Typed
 import Kitten.Util.Text (toText)
 
 type LocMap = UnionMap FilePath (UnionMap Pos [Node])

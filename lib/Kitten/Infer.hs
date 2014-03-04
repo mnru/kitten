@@ -23,20 +23,16 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 
 import Kitten.ClosedName
-import Kitten.Def
 import Kitten.Error
-import Kitten.Fragment
 import Kitten.Infer.Monad
 import Kitten.Infer.Scheme
 import Kitten.Infer.Type
 import Kitten.Infer.Unify
 import Kitten.Location
 import Kitten.Name
-import Kitten.Resolved
+import Kitten.Tree
 import Kitten.Type (Type((:&), (:.), (:?), (:|)))
 import Kitten.Type hiding (Type(..), Local)
-import Kitten.Typed (Typed)
-import Kitten.TypeDef
 import Kitten.Util.FailWriter
 import Kitten.Util.Monad
 import Kitten.Util.Text (toText)
@@ -44,7 +40,6 @@ import Kitten.Util.Text (toText)
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.NameMap as N
 import qualified Kitten.Type as Type
-import qualified Kitten.Typed as Typed
 import qualified Kitten.Util.Vector as V
 
 typeFragment

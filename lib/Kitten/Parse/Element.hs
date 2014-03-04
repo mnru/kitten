@@ -7,11 +7,7 @@ module Kitten.Parse.Element
 
 import qualified Data.Vector as V
 
-import Kitten.Def
-import Kitten.Fragment
-import Kitten.Import
-import Kitten.Term
-import Kitten.TypeDef
+import Kitten.Tree
 
 data Element
   = DefElement (Def Term)

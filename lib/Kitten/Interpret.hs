@@ -28,13 +28,13 @@ import qualified Data.Vector as V
 
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
+import Kitten.IR (Instruction)
 import Kitten.Location
 import Kitten.Name
 import Kitten.Util.Text (ToText(..), showText)
-import Kitten.Yarn (Instruction)
 
 import qualified Kitten.Builtin as Builtin
-import qualified Kitten.Yarn as Y
+import qualified Kitten.IR as IR
 
 data Env = Env
   { envCalls :: !(IORef [Call])

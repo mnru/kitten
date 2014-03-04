@@ -25,16 +25,6 @@ data Term
   | VectorTerm !(Vector Term) !Location
   deriving (Eq, Show)
 
-data Value
-  = Bool !Bool !Location
-  | Char !Char !Location
-  | Float !Double !Location
-  | Function !(Vector Term) !Location
-  | Int !Int !Location
-  | Unit !Location
-  | String !Text !Location
-  deriving (Eq, Show)
-
 instance AST Term where
   type TermValue Term = Value
   type TermDef Term = Def Term

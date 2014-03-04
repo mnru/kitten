@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Kitten.Yarn
+module Kitten.IR
   ( Instruction(..)
   , Index
   , Label
   , Offset
   , Value(..)
-  , yarn
+  , ir
   ) where
 
 import Control.Applicative hiding (some)
@@ -25,16 +25,13 @@ import qualified Data.Vector as V
 
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
-import Kitten.Def
-import Kitten.Fragment
 import Kitten.Name
-import Kitten.Typed (Typed, TypedDef)
+import Kitten.Tree (Term)
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Type as Type
-import qualified Kitten.Typed as Typed
 
 type Label = Int
 type Offset = Int
@@ -125,15 +122,15 @@ data Env = Env
   { envClosures :: [Vector Instruction]
   }
 
-type Yarn a = ReaderT Int (State Env) a
+type IR a = ReaderT Int (State Env) a
 
-yarn
-  :: Fragment Typed
+ir
+  :: Tree Typed
   -> Vector Instruction
-yarn Fragment{..}
+ir Fragment{..}
   = collectClosures . withClosureOffset $ (<>)
-    <$> yarnEntry fragmentTerms
-    <*> concatMapM (uncurry yarnDef)
+    <$> irEntry fragmentTerms
+    <*> concatMapM (uncurry irDef)
       (V.zip fragmentDefs (V.fromList [0..V.length fragmentDefs]))
 
   where
@@ -141,7 +138,7 @@ yarn Fragment{..}
   closureOffset = V.length fragmentDefs
 
   withClosureOffset
-    :: Yarn a
+    :: IR a
     -> State Env a
   withClosureOffset = flip runReaderT closureOffset
 
@@ -163,56 +160,56 @@ yarn Fragment{..}
     , V.fromList [Return]
     ]
 
-yarnDef
+irDef
   :: TypedDef
   -> Int
-  -> Yarn (Vector Instruction)
-yarnDef Def{..} index = do
-  instructions <- yarnTerm (Type.unScheme defTerm)
+  -> IR (Vector Instruction)
+irDef Def{..} index = do
+  instructions <- irTerm (Type.unScheme defTerm)
   return $ V.concat
     [ V.fromList [Comment defName, Label index]
     , instructions
     , V.fromList [Return]
     ]
 
-yarnEntry :: Vector Typed -> Yarn (Vector Instruction)
-yarnEntry terms = do
-  instructions <- concatMapM yarnTerm terms
+irEntry :: Vector Typed -> IR (Vector Instruction)
+irEntry terms = do
+  instructions <- concatMapM irTerm terms
   return $ V.concat
     [ V.singleton EntryLabel
     , instructions
     , V.singleton Return
     ]
 
-yarnTerm :: Typed -> Yarn (Vector Instruction)
-yarnTerm term = case term of
+irTerm :: Typed -> IR (Vector Instruction)
+irTerm term = case term of
   Typed.Builtin builtin _ _ -> return $ V.singleton (Builtin builtin)
   Typed.Call (Name index) _ _ -> return $ V.singleton (Call index)
-  Typed.Compose terms _ _ -> concatMapM yarnTerm terms
+  Typed.Compose terms _ _ -> concatMapM irTerm terms
   Typed.From{} -> return V.empty
   Typed.PairTerm a b _ _ -> do
-    a' <- yarnTerm a
-    b' <- yarnTerm b
+    a' <- irTerm a
+    b' <- irTerm b
     return $ a' <> b' <> V.singleton (Builtin Builtin.Pair)
-  Typed.Push value _ _ -> yarnValue value
+  Typed.Push value _ _ -> irValue value
   Typed.Scoped terms _ _ -> do
-    instructions <- yarnTerm terms
+    instructions <- irTerm terms
     return $ V.singleton Enter <> instructions <> V.singleton Leave
   Typed.To{} -> return V.empty
   Typed.VectorTerm values _ _ -> do
-    values' <- concatMapM yarnTerm values
+    values' <- concatMapM irTerm values
     return $ values' <> (V.singleton . MakeVector $ V.length values)
 
-yarnValue
+irValue
   :: Typed.Value
-  -> Yarn (Vector Instruction)
-yarnValue resolved = case resolved of
+  -> IR (Vector Instruction)
+irValue resolved = case resolved of
   Typed.Bool x -> value $ Bool x
   Typed.Char x -> value $ Char x
   Typed.Closed (Name index) -> return $ V.singleton (Closure index)
   Typed.Closure names terms -> do
-    instructions <- yarnTerm terms
-    index <- yarnClosure instructions
+    instructions <- irTerm terms
+    index <- irClosure instructions
     return $ V.singleton (Act index names)
   Typed.Float x -> value $ Float x
   Typed.Int x -> value $ Int x
@@ -220,11 +217,11 @@ yarnValue resolved = case resolved of
   Typed.Unit -> value Unit
   Typed.String x -> value $ String x
   where
-  value :: Value -> Yarn (Vector Instruction)
+  value :: Value -> IR (Vector Instruction)
   value = return . V.singleton . Push
 
-yarnClosure :: Vector Instruction -> Yarn Label
-yarnClosure terms = do
+irClosure :: Vector Instruction -> IR Label
+irClosure terms = do
   closureOffset <- ask
   label <- lift . gets $ length . envClosures
   lift . modify $ \env@Env{..} -> env

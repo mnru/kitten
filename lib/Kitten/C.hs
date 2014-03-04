@@ -18,11 +18,11 @@ import qualified Data.Vector as V
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.C.Quote
+import Kitten.IR
 import Kitten.Name
 import Kitten.NameMap (NameMap)
 import Kitten.Util.List
 import Kitten.Util.Text (showText)
-import Kitten.Yarn
 
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.NameMap as N

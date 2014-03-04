@@ -56,11 +56,8 @@ library
     Kitten.ClosedName,
     Kitten.Compile,
     Kitten.Compile.Config,
-    Kitten.Def,
     Kitten.Error,
-    Kitten.Fragment,
     Kitten.HTML,
-    Kitten.Import,
     Kitten.Infer,
     Kitten.Infer.Config,
     Kitten.Infer.Locations,
@@ -69,6 +66,7 @@ library
     Kitten.Infer.Type,
     Kitten.Infer.Unify,
     Kitten.Interpret,
+    Kitten.IR,
     Kitten.Kind,
     Kitten.Location,
     Kitten.Name,
@@ -82,15 +80,12 @@ library
     Kitten.Parsec,
     Kitten.Resolve,
     Kitten.Resolve.Monad,
-    Kitten.Resolved,
     Kitten.Scope,
-    Kitten.Term,
     Kitten.Token,
     Kitten.Tokenize,
+    Kitten.Tree,
     Kitten.Type,
     Kitten.Type.Tidy,
-    Kitten.TypeDef,
-    Kitten.Typed,
     Kitten.Util.Applicative,
     Kitten.Util.Either,
     Kitten.Util.FailWriter,
@@ -103,8 +98,7 @@ library
     Kitten.Util.Show,
     Kitten.Util.Text,
     Kitten.Util.Tuple,
-    Kitten.Util.Vector,
-    Kitten.Yarn
+    Kitten.Util.Vector
 
 executable kitten
 

@@ -7,9 +7,8 @@ module Kitten.Compile.Config
 import Data.Text (Text)
 import Data.Vector (Vector)
 
-import Kitten.Fragment
 import Kitten.Type
-import Kitten.Typed (Typed)
+import Kitten.Tree
 
 import qualified Kitten.Infer.Config as Infer
 

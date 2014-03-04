@@ -27,10 +27,8 @@ import Data.Vector (Vector)
 
 import qualified Data.Vector as V
 
-import Kitten.Def
 import Kitten.Error
-import Kitten.Term (Term)
-import Kitten.Typed (TypedDef)
+import Kitten.Tree
 import Kitten.Util.FailWriter (FailWriterT, runFailWriterT)
 
 import qualified Kitten.Util.FailWriter as FailWriter

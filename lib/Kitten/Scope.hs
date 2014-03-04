@@ -15,10 +15,8 @@ import qualified Data.Traversable as T
 import qualified Data.Vector as V
 
 import Kitten.ClosedName
-import Kitten.Def
-import Kitten.Fragment
 import Kitten.Name
-import Kitten.Resolved
+import Kitten.Tree
 import Kitten.Util.List
 
 scope :: Fragment Resolved -> Fragment Resolved

@@ -15,18 +15,12 @@ import GHC.Exts
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import Kitten.Def
 import Kitten.Error
-import Kitten.Fragment
 import Kitten.Location
 import Kitten.Name
 import Kitten.Resolve.Monad
-import Kitten.Resolved
-import Kitten.Term (Term)
-import Kitten.Typed (Typed)
+import Kitten.Tree
 import Kitten.Util.Function
-
-import qualified Kitten.Term as Term
 
 resolve
   :: Fragment Typed
