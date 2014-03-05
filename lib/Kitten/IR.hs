@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -7,13 +8,14 @@ module Kitten.IR
   , Label
   , Offset
   , Value(..)
-  , ir
+  , irTerm
   ) where
 
 import Control.Applicative hiding (some)
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
+import Data.HashMap (HashMap)
 import Data.Monoid
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -26,16 +28,26 @@ import qualified Data.Vector as V
 import Kitten.Builtin (Builtin)
 import Kitten.ClosedName
 import Kitten.Name
-import Kitten.Tree (Term)
+import Kitten.NameMap (NameMap)
+import Kitten.Tree (Pass(..), Term)
 import Kitten.Util.Monad
 import Kitten.Util.Text (ToText(..), showText)
 
+import qualified Kitten.Tree as Tree
 import qualified Kitten.Builtin as Builtin
 import qualified Kitten.Type as Type
+
+data Program = Program
+  { programBlocks :: !(NameMap Block)
+  , programNameGen :: !NameGen
+  , programSymbols :: !(HashMap Text Name)
+  }
 
 type Label = Int
 type Offset = Int
 type Index = Int
+
+type Block = Vector Instruction
 
 data Instruction
   = Act !Label !(Vector ClosedName)
@@ -44,7 +56,6 @@ data Instruction
   | Closure !Index
   | Comment !Text
   | Enter
-  | EntryLabel
   | Leave
   | Label !Label
   | Local !Index
@@ -69,7 +80,6 @@ instance ToText Instruction where
     Closure index -> ["closure", showText index]
     Comment comment -> ["\n;", comment]
     Enter -> ["enter"]
-    EntryLabel -> ["\nentry"]
     Leave -> ["leave"]
     Label label -> ["\nlabel", showText label]
     Local index -> ["local", showText index]
@@ -118,109 +128,48 @@ instance ToText Value where
         (T.unpack string)
     Unit -> ["unit"]
 
-data Env = Env
-  { envClosures :: [Vector Instruction]
-  }
+data Env = Env { envClosures :: [Block] }
 
-type IR a = ReaderT Int (State Env) a
+type IR a = State Env a
 
-ir
-  :: Tree Typed
-  -> Vector Instruction
-ir Fragment{..}
-  = collectClosures . withClosureOffset $ (<>)
-    <$> irEntry fragmentTerms
-    <*> concatMapM (uncurry irDef)
-      (V.zip fragmentDefs (V.fromList [0..V.length fragmentDefs]))
-
-  where
-  closureOffset :: Int
-  closureOffset = V.length fragmentDefs
-
-  withClosureOffset
-    :: IR a
-    -> State Env a
-  withClosureOffset = flip runReaderT closureOffset
-
-  collectClosures
-    :: State Env (Vector Instruction)
-    -> Vector Instruction
-  collectClosures action = let
-    (instructions, Env{..}) = runState action Env { envClosures = [] }
-    in instructions <> V.concatMap (uncurry collectClosure)
-      (V.fromList (zip [closureOffset..] (reverse envClosures)))
-
-  collectClosure
-    :: Int
-    -> Vector Instruction
-    -> Vector Instruction
-  collectClosure index instructions = V.concat
-    [ V.singleton (Label index)
-    , instructions
-    , V.fromList [Return]
-    ]
-
-irDef
-  :: TypedDef
-  -> Int
-  -> IR (Vector Instruction)
-irDef Def{..} index = do
-  instructions <- irTerm (Type.unScheme defTerm)
-  return $ V.concat
-    [ V.fromList [Comment defName, Label index]
-    , instructions
-    , V.fromList [Return]
-    ]
-
-irEntry :: Vector Typed -> IR (Vector Instruction)
-irEntry terms = do
-  instructions <- concatMapM irTerm terms
-  return $ V.concat
-    [ V.singleton EntryLabel
-    , instructions
-    , V.singleton Return
-    ]
-
-irTerm :: Typed -> IR (Vector Instruction)
+irTerm :: Term Typed -> IR Block
 irTerm term = case term of
-  Typed.Builtin builtin _ _ -> return $ V.singleton (Builtin builtin)
-  Typed.Call (Name index) _ _ -> return $ V.singleton (Call index)
-  Typed.Compose terms _ _ -> concatMapM irTerm terms
-  Typed.From{} -> return V.empty
-  Typed.PairTerm a b _ _ -> do
+  Tree.Builtin builtin _ _ -> return $ V.singleton (Builtin builtin)
+  Tree.Call (Name index) _ _ -> return $ V.singleton (Call index)
+  Tree.Compose terms _ _ -> concatMapM irTerm terms
+  Tree.From{} -> return V.empty
+  Tree.PairTerm a b _ _ -> do
     a' <- irTerm a
     b' <- irTerm b
     return $ a' <> b' <> V.singleton (Builtin Builtin.Pair)
-  Typed.Push value _ _ -> irValue value
-  Typed.Scoped terms _ _ -> do
+  Tree.Push value _ _ -> irValue value
+  Tree.Scoped terms _ _ -> do
     instructions <- irTerm terms
     return $ V.singleton Enter <> instructions <> V.singleton Leave
-  Typed.To{} -> return V.empty
-  Typed.VectorTerm values _ _ -> do
+  Tree.To{} -> return V.empty
+  Tree.VectorTerm values _ _ -> do
     values' <- concatMapM irTerm values
     return $ values' <> (V.singleton . MakeVector $ V.length values)
 
-irValue
-  :: Typed.Value
-  -> IR (Vector Instruction)
+irValue :: Tree.Value Typed -> IR Block
 irValue resolved = case resolved of
-  Typed.Bool x -> value $ Bool x
-  Typed.Char x -> value $ Char x
-  Typed.Closed (Name index) -> return $ V.singleton (Closure index)
-  Typed.Closure names terms -> do
+  Tree.Bool x -> value $ Bool x
+  Tree.Char x -> value $ Char x
+  Tree.Closed (Name index) -> return $ V.singleton (Closure index)
+  Tree.Closure names terms -> do
     instructions <- irTerm terms
     index <- irClosure instructions
     return $ V.singleton (Act index names)
-  Typed.Float x -> value $ Float x
-  Typed.Int x -> value $ Int x
-  Typed.Local (Name index) -> return $ V.singleton (Local index)
-  Typed.Unit -> value Unit
-  Typed.String x -> value $ String x
+  Tree.Float x -> value $ Float x
+  Tree.Int x -> value $ Int x
+  Tree.Local (Name index) -> return $ V.singleton (Local index)
+  Tree.Unit -> value Unit
+  Tree.String x -> value $ String x
   where
-  value :: Value -> IR (Vector Instruction)
+  value :: Value -> IR Block
   value = return . V.singleton . Push
 
-irClosure :: Vector Instruction -> IR Label
+irClosure :: Block -> IR Label
 irClosure terms = do
   closureOffset <- ask
   label <- lift . gets $ length . envClosures

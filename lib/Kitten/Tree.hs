@@ -36,7 +36,7 @@ data Term (p :: Pass) where
   PairTerm :: !(Term p) -> !(Term p) -> !Location -> ExprMeta p -> Term p
   Push :: !(Value p) -> !Location -> ExprMeta p -> Term p
   To :: !Text -> !Location -> ExprMeta p -> Term p
-  Scoped :: !Text -> !Location -> ExprMeta p -> Term p
+  Scoped :: !(Term p) -> !Location -> ExprMeta p -> Term p
   VectorTerm :: !(Vector (Term p)) -> !Location -> ExprMeta p -> Term p
 
 instance (Eq (ExprLabel p), Eq (ExprMeta p)) => Eq (Term p) where
